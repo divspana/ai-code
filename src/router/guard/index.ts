@@ -13,6 +13,9 @@ NProgress.configure({ showSpinner: false })
 
 const WHITE_LIST = [PageEnum.BASE_LOGIN]
 
+// 开发环境下禁用权限验证
+const ENABLE_PERMISSION = import.meta.env.PROD
+
 export function setupRouterGuard(router: Router) {
   createPageGuard(router)
   createProgressGuard(router)
@@ -20,6 +23,12 @@ export function setupRouterGuard(router: Router) {
 
 function createPageGuard(router: Router) {
   router.beforeEach(async (to, _from, next) => {
+    // 开发环境直接放行
+    if (!ENABLE_PERMISSION) {
+      next()
+      return
+    }
+
     const userStore = useUserStoreWithOut()
     const token = userStore.getToken
 
