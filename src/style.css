@@ -1,0 +1,59 @@
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* 主题颜色变量 - 默认值 */
+  --theme-primary: #1890ff;
+  --theme-sidebar: #001529;
+  --theme-sidebar-dark: #002140;
+
+  /* Element Plus 主题色 */
+  --el-color-primary: #1890ff;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 表单字段聚焦时边框样式 - 2px */
+.el-input__wrapper.is-focus {
+  border: 2px solid var(--el-color-primary) !important;
+  box-shadow: none !important;
+}
+
+.el-textarea__inner:focus {
+  border: 2px solid var(--el-color-primary) !important;
+  box-shadow: none !important;
+}
+
+.el-select .el-input.is-focus .el-input__wrapper {
+  border: 2px solid var(--el-color-primary) !important;
+  box-shadow: none !important;
+}
+
+.el-input-number.is-focus .el-input__wrapper {
+  border: 2px solid var(--el-color-primary) !important;
+  box-shadow: none !important;
+}
+
+.el-date-editor.is-focus .el-input__wrapper {
+  border: 2px solid var(--el-color-primary) !important;
+  box-shadow: none !important;
+}
+
+.el-radio-group:focus-within,
+.el-checkbox-group:focus-within {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

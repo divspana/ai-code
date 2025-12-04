@@ -1,0 +1,55 @@
+{
+  "name": "vue3-element-plus",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
+    "prepare": "husky",
+    "lint": "eslint . --ext .vue,.js,.ts,.jsx,.tsx --fix",
+    "lint:check": "eslint . --ext .vue,.js,.ts,.jsx,.tsx",
+    "format": "prettier --write \"src/**/*.{js,ts,vue,json,css,scss,md}\"",
+    "format:check": "prettier --check \"src/**/*.{js,ts,vue,json,css,scss,md}\""
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "@uppy/core": "^5.2.0",
+    "@uppy/dashboard": "^5.1.0",
+    "@uppy/drag-drop": "^5.1.0",
+    "@uppy/progress-bar": "^4.3.2",
+    "@uppy/status-bar": "^5.1.0",
+    "@uppy/vue": "^3.1.0",
+    "@uppy/xhr-upload": "^5.1.0",
+    "echarts": "^6.0.0",
+    "element-plus": "^2.11.9",
+    "vue": "^3.5.24",
+    "vue-echarts": "^8.0.1",
+    "vue-router": "^4.6.3",
+    "vue-upload-component": "^2.8.23"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.1.0",
+    "@commitlint/config-conventional": "^20.0.0",
+    "@types/node": "^24.10.1",
+    "@typescript-eslint/eslint-plugin": "^8.48.1",
+    "@typescript-eslint/parser": "^8.48.1",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/tsconfig": "^0.8.1",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "eslint-plugin-vue": "^10.6.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.7.4",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.4",
+    "vue-tsc": "^3.1.4"
+  },
+  "lint-staged": {
+    "*.{js,ts,vue}": ["eslint --fix", "prettier --write"],
+    "*.{json,md,css,scss}": ["prettier --write"]
+  }
+}

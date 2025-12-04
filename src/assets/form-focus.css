@@ -1,0 +1,69 @@
+/* 表单字段聚焦时 2px 边框样式 - 优化版（避免高度闪现） */
+
+/* 所有输入框默认就使用 2px 透明边框，聚焦时只改变颜色 */
+.el-input__wrapper {
+  border: 2px solid transparent !important;
+  box-shadow: 0 0 0 1px var(--el-border-color, #dcdfe6) inset !important;
+  transition: box-shadow 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+}
+
+.el-input__wrapper.is-focus {
+  border: 2px solid var(--el-color-primary) !important;
+  box-shadow: none !important;
+}
+
+/* Textarea 多行文本框 */
+.el-textarea__inner {
+  border: 2px solid transparent !important;
+  box-shadow: 0 0 0 1px var(--el-border-color, #dcdfe6) inset !important;
+  transition:
+    border-color 0.2s cubic-bezier(0.645, 0.045, 0.355, 1),
+    box-shadow 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+  outline: none !important;
+}
+
+.el-textarea__inner:focus {
+  border: 2px solid var(--el-color-primary) !important;
+  box-shadow: none !important;
+}
+
+/* Select 下拉选择 */
+.el-select .el-input__wrapper {
+  border: 2px solid transparent !important;
+  box-shadow: 0 0 0 1px var(--el-border-color, #dcdfe6) inset !important;
+}
+
+.el-select .el-input.is-focus .el-input__wrapper {
+  border: 2px solid var(--el-color-primary) !important;
+  box-shadow: none !important;
+}
+
+/* InputNumber 数字输入框 */
+.el-input-number .el-input__wrapper {
+  border: 2px solid transparent !important;
+  box-shadow: 0 0 0 1px var(--el-border-color, #dcdfe6) inset !important;
+}
+
+.el-input-number.is-focus .el-input__wrapper {
+  border: 2px solid var(--el-color-primary) !important;
+  box-shadow: none !important;
+}
+
+/* DatePicker 日期选择器 */
+.el-date-editor .el-input__wrapper {
+  border: 2px solid transparent !important;
+  box-shadow: 0 0 0 1px var(--el-border-color, #dcdfe6) inset !important;
+}
+
+.el-date-editor.is-focus .el-input__wrapper {
+  border: 2px solid var(--el-color-primary) !important;
+  box-shadow: none !important;
+}
+
+/* Radio 和 Checkbox 组 */
+.el-radio-group:focus-within,
+.el-checkbox-group:focus-within {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

@@ -1,0 +1,12 @@
+dist
+node_modules
+.DS_Store
+*.local
+*.log
+.vscode
+.idea
+coverage
+public
+*.min.js
+*.d.ts
+vite.config.ts
