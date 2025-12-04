@@ -3,52 +3,30 @@
  */
 
 import type { Router } from 'vue-router'
-import { useUserStoreWithOut } from '@/store/modules/user'
-import { useAppStoreWithOut } from '@/store/modules/app'
-import { PageEnum } from '@/enums/pageEnum'
 import NProgress from 'nprogress'
 import 'nprogress/nprogress.css'
 
 NProgress.configure({ showSpinner: false })
 
-const WHITE_LIST = [PageEnum.BASE_LOGIN]
-
 // 开发环境下禁用权限验证
 const ENABLE_PERMISSION = import.meta.env.PROD
 
 export function setupRouterGuard(router: Router) {
-  createPageGuard(router)
   createProgressGuard(router)
+  
+  // 生产环境才启用权限守卫
+  if (ENABLE_PERMISSION) {
+    createPageGuard(router)
+  }
 }
 
 function createPageGuard(router: Router) {
   router.beforeEach(async (to, _from, next) => {
-    // 开发环境直接放行
-    if (!ENABLE_PERMISSION) {
-      next()
-      return
-    }
-
-    const userStore = useUserStoreWithOut()
-    const token = userStore.getToken
-
-    if (WHITE_LIST.includes(to.path as PageEnum)) {
-      next()
-      return
-    }
-
-    if (!token) {
-      if (to.path !== PageEnum.BASE_LOGIN) {
-        next({ path: PageEnum.BASE_LOGIN, replace: true })
-        return
-      }
-    }
-
-    if (to.path === PageEnum.BASE_LOGIN && token) {
-      next({ path: PageEnum.BASE_HOME, replace: true })
-      return
-    }
-
+    // 这里可以添加权限验证逻辑
+    // const userStore = useUserStoreWithOut()
+    // const token = userStore.getToken
+    // ...
+    
     next()
   })
 }
@@ -56,13 +34,9 @@ function createPageGuard(router: Router) {
 function createProgressGuard(router: Router) {
   router.beforeEach(() => {
     NProgress.start()
-    const appStore = useAppStoreWithOut()
-    appStore.setPageLoading(true)
   })
 
   router.afterEach(() => {
     NProgress.done()
-    const appStore = useAppStoreWithOut()
-    appStore.setPageLoading(false)
   })
 }
