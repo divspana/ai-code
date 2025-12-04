@@ -200,7 +200,7 @@ const handleClearAll = () => {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .file-upload-container {
   height: 100%;
   display: flex;

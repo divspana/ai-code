@@ -131,7 +131,7 @@ const handleMenuSelect = (path: string) => {
   </el-container>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .layout-container {
   height: 100vh;
   width: 100vw;

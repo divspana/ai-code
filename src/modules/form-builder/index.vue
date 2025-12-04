@@ -389,7 +389,7 @@ const previewMode = ref(false)
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .form-builder {
   height: 100%;
   display: flex;

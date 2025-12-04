@@ -294,7 +294,7 @@ onMounted(() => {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .todo-container {
   padding: 0;
   min-height: 100%;

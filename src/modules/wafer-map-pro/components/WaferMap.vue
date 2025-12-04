@@ -459,7 +459,7 @@ onUnmounted(() => {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .wafer-map-container {
   position: relative;
   display: inline-block;

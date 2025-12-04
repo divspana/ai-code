@@ -381,7 +381,7 @@ const formatSize = (bytes: number): string => {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .uppy-upload-container {
   height: 100%;
   display: flex;

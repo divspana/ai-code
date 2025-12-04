@@ -383,7 +383,7 @@ xAxisData: ['性能', '稳定性', '易用性']</code></pre>
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .charts-demo {
   height: 100%;
   display: flex;

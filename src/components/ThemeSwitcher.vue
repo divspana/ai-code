@@ -54,7 +54,7 @@ const handleThemeChange = (theme: ThemeType) => {
   </el-popover>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .theme-switcher {
   padding: 8px;
 }

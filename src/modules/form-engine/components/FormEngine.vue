@@ -255,7 +255,7 @@ onMounted(() => {
   </el-form>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .el-form {
   width: 100%;
 }

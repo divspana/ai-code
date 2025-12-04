@@ -294,7 +294,7 @@ defineExpose({
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .chart-wrapper {
   position: relative;
 }

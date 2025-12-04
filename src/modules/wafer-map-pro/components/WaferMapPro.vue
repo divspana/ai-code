@@ -577,7 +577,7 @@ onMounted(() => {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .wafer-map-pro {
   position: relative;
   display: inline-block;

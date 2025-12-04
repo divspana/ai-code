@@ -431,7 +431,7 @@ const handleSetData = () => {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .demo-container {
   padding: 20px;
   min-height: 100%;

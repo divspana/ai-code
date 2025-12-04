@@ -400,7 +400,7 @@ generateWaferData()
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 .wafer-demo {
   height: 100%;
   display: flex;
