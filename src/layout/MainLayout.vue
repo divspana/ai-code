@@ -57,6 +57,11 @@ const menuItems = [
     path: '/file-upload-uppy',
     title: '文件上传 (Uppy)',
     icon: Upload
+  },
+  {
+    path: '/chart-designer',
+    title: '图表设计器',
+    icon: DataAnalysis
   }
 ]
 

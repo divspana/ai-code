@@ -77,6 +77,15 @@ const routes: RouteRecordRaw[] = [
       title: '文件上传 (Uppy)',
       icon: 'Upload'
     }
+  },
+  {
+    path: '/chart-designer',
+    name: 'ChartDesigner',
+    component: () => import('../modules/chart-designer/index.vue'),
+    meta: {
+      title: '图表设计器',
+      icon: 'DataAnalysis'
+    }
   }
 ]
 
