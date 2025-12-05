@@ -10,7 +10,7 @@
         @click="selectChart(chart.type)"
       >
         <el-icon class="chart-icon" :size="32">
-          <component :is="chart.icon" />
+          <component :is="iconMap[chart.icon]" />
         </el-icon>
         <div class="chart-name">{{ chart.name }}</div>
         <div class="chart-desc">{{ chart.description }}</div>
@@ -23,10 +23,13 @@
 import { ref } from 'vue'
 import { useChartLibrary } from '../composables/useChartLibrary'
 import type { ChartType } from '../types'
-import * as ElementPlusIconsVue from '@element-plus/icons-vue'
-
-// 注册所有图标
-const icons = ElementPlusIconsVue
+import {
+  TrendCharts,
+  Histogram,
+  PieChart,
+  Coordinate,
+  Odometer
+} from '@element-plus/icons-vue'
 
 const emit = defineEmits<{
   select: [type: ChartType]
@@ -34,6 +37,15 @@ const emit = defineEmits<{
 
 const { chartLibrary } = useChartLibrary()
 const selectedType = ref<ChartType | null>(null)
+
+// 图标映射
+const iconMap: Record<string, any> = {
+  TrendCharts,
+  Histogram,
+  PieChart,
+  Coordinate,
+  Odometer
+}
 
 const selectChart = (type: ChartType) => {
   selectedType.value = type
