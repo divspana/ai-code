@@ -77,6 +77,4 @@ const defaultOption: EChartsOption = {
 }
 
 const chartOption = computed(() => props.option || defaultOption)
-
-export const getDefaultOption = (): EChartsOption => defaultOption
 </script>
