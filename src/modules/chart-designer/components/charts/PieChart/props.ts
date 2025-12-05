@@ -1,40 +1,21 @@
-<template>
-  <v-chart :option="chartOption" :style="{ width, height }" autoresize />
-</template>
+/**
+ * 饼图组件 Props 定义
+ */
 
-<script setup lang="ts">
-import { computed } from 'vue'
-import VChart from 'vue-echarts'
-import { use } from 'echarts/core'
-import { CanvasRenderer } from 'echarts/renderers'
-import { PieChart } from 'echarts/charts'
-import {
-  TitleComponent,
-  TooltipComponent,
-  LegendComponent
-} from 'echarts/components'
 import type { EChartsOption } from 'echarts'
 
-use([
-  CanvasRenderer,
-  PieChart,
-  TitleComponent,
-  TooltipComponent,
-  LegendComponent
-])
-
-interface Props {
+export interface PieChartProps {
   option?: EChartsOption
   width?: string
   height?: string
 }
 
-const props = withDefaults(defineProps<Props>(), {
+export const pieChartPropsDefaults = {
   width: '100%',
   height: '400px'
-})
+}
 
-const defaultOption: EChartsOption = {
+export const defaultPieChartOption: EChartsOption = {
   title: {
     text: '饼图',
     left: 'center'
@@ -69,6 +50,3 @@ const defaultOption: EChartsOption = {
     }
   ]
 }
-
-const chartOption = computed(() => props.option || defaultOption)
-</script>

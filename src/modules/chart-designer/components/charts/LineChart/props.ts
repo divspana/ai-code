@@ -1,43 +1,22 @@
-<template>
-  <v-chart :option="chartOption" :style="{ width, height }" autoresize />
-</template>
+/**
+ * 折线图组件 Props 定义
+ */
 
-<script setup lang="ts">
-import { computed } from 'vue'
-import VChart from 'vue-echarts'
-import { use } from 'echarts/core'
-import { CanvasRenderer } from 'echarts/renderers'
-import { LineChart } from 'echarts/charts'
-import {
-  TitleComponent,
-  TooltipComponent,
-  LegendComponent,
-  GridComponent
-} from 'echarts/components'
 import type { EChartsOption } from 'echarts'
 
-use([
-  CanvasRenderer,
-  LineChart,
-  TitleComponent,
-  TooltipComponent,
-  LegendComponent,
-  GridComponent
-])
-
-interface Props {
+export interface LineChartProps {
   option?: EChartsOption
   width?: string
   height?: string
 }
 
-const props = withDefaults(defineProps<Props>(), {
+export const lineChartPropsDefaults = {
   width: '100%',
   height: '400px'
-})
+}
 
 // 默认配置
-const defaultOption: EChartsOption = {
+export const defaultLineChartOption: EChartsOption = {
   title: {
     text: '折线图'
   },
@@ -74,6 +53,3 @@ const defaultOption: EChartsOption = {
     }
   ]
 }
-
-const chartOption = computed(() => props.option || defaultOption)
-</script>
