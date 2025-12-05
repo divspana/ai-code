@@ -32,6 +32,7 @@ export interface ChartInstance {
     width: number
     height: number
   }
+  mixed?: boolean  // 是否合并到混合图表中
 }
 
 // 图表库项

@@ -9,8 +9,37 @@
     </div>
     
     <div class="canvas-content" ref="canvasRef">
+      <!-- 混合图表容器 -->
+      <div v-if="mixedSeries.length > 0" class="chart-wrapper mixed-chart-wrapper">
+        <div class="chart-header">
+          <span>混合图表 ({{ mixedSeries.length }} 个系列)</span>
+          <div class="header-actions">
+            <el-button
+              size="small"
+              @click="splitCharts"
+            >
+              拆分
+            </el-button>
+            <el-button
+              type="danger"
+              size="small"
+              :icon="Delete"
+              circle
+              @click="clearMixed"
+            />
+          </div>
+        </div>
+        <MixedChart
+          :series-list="mixedSeries"
+          width="100%"
+          height="calc(100% - 40px)"
+          :title="mixedTitle"
+        />
+      </div>
+
+      <!-- 独立图表 -->
       <div
-        v-for="chart in charts"
+        v-for="chart in independentCharts"
         :key="chart.id"
         class="chart-wrapper"
         :style="{
@@ -37,7 +66,7 @@
       </div>
 
       <el-empty
-        v-if="charts.length === 0"
+        v-if="props.charts.length === 0"
         description="从左侧选择图表类型开始设计"
         :image-size="200"
       />
@@ -46,10 +75,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { ChartComponents } from './charts'
+import MixedChart from './MixedChart.vue'
 import type { ChartInstance } from '../types'
 
 interface Props {
@@ -58,9 +88,34 @@ interface Props {
 
 const props = defineProps<Props>()
 
+// 分离混合图表和独立图表
+const mixedSeries = computed(() => {
+  return props.charts
+    .filter(chart => chart.mixed)
+    .map(chart => {
+      const series = chart.option.series
+      return Array.isArray(series) ? series : [series]
+    })
+    .flat()
+    .filter(Boolean)
+})
+
+const independentCharts = computed(() => {
+  return props.charts.filter(chart => !chart.mixed)
+})
+
+const mixedTitle = computed(() => {
+  const types = props.charts
+    .filter(chart => chart.mixed)
+    .map(chart => chart.name)
+  return types.join(' + ')
+})
+
 const emit = defineEmits<{
   remove: [id: string]
   clear: []
+  clearMixed: []
+  split: []
   export: []
 }>()
 
@@ -74,6 +129,14 @@ const clearAll = () => {
   emit('clear')
 }
 
+const clearMixed = () => {
+  emit('clearMixed')
+}
+
+const splitCharts = () => {
+  emit('split')
+}
+
 const exportConfig = () => {
   if (props.charts.length === 0) {
     ElMessage.warning('画布为空，无法导出')
@@ -85,8 +148,10 @@ const exportConfig = () => {
       type: chart.type,
       name: chart.name,
       option: chart.option,
-      size: chart.size
+      size: chart.size,
+      mixed: chart.mixed
     })),
+    mixedSeries: mixedSeries.value,
     exportTime: new Date().toISOString()
   }
   
@@ -156,5 +221,21 @@ const exportConfig = () => {
   justify-content: space-between;
   align-items: center;
   font-weight: 600;
+
+  .header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+}
+
+.mixed-chart-wrapper {
+  grid-column: 1 / -1;
+  min-height: 600px;
+  
+  .chart-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+  }
 }
 </style>
