@@ -75,9 +75,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { Delete } from '@element-plus/icons-vue'
 import { computed, defineAsyncComponent } from 'vue'
+import { Delete } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import type { ChartInstance } from '../types'
 import MixedChart from './MixedChart.vue'
 
