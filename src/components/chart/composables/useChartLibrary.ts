@@ -12,7 +12,7 @@ import {
   defaultScatterChartOption,
   defaultRadarChartOption,
   defaultGaugeChartOption
-} from '../components/charts'
+} from '@/components/chart'
 
 export function useChartLibrary() {
   // 图表库数据

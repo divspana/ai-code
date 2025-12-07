@@ -77,10 +77,26 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { Delete } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { ChartComponents } from './charts'
-import MixedChart from './MixedChart.vue'
+import { computed, defineAsyncComponent } from 'vue'
 import type { ChartInstance } from '../types'
+import MixedChart from './MixedChart.vue'
+
+// 动态导入图表组件（从 @/components/chart 导入）
+const LineChart = defineAsyncComponent(() => import('@/components/chart/LineChart'))
+const BarChart = defineAsyncComponent(() => import('@/components/chart/BarChart'))
+const PieChart = defineAsyncComponent(() => import('@/components/chart/PieChart'))
+const ScatterChart = defineAsyncComponent(() => import('@/components/chart/ScatterChart'))
+const RadarChart = defineAsyncComponent(() => import('@/components/chart/RadarChart'))
+const GaugeChart = defineAsyncComponent(() => import('@/components/chart/GaugeChart'))
+
+const ChartComponents = {
+  line: LineChart,
+  bar: BarChart,
+  pie: PieChart,
+  scatter: ScatterChart,
+  radar: RadarChart,
+  gauge: GaugeChart
+}
 
 interface Props {
   charts: ChartInstance[]
