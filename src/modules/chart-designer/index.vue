@@ -28,12 +28,14 @@
 import { ref } from 'vue'
 import ChartSelector from './components/ChartSelector.vue'
 import ChartCanvas from './components/ChartCanvas.vue'
+import ChartDesigner from './components/chart-designer/src/chart-designer.vue'
+import type { ChartType, ChartInstance } from './types'
 import { useChartLibrary } from './composables/useChartLibrary'
-import type { ChartInstance, ChartType } from './types'
 
 const { getChartDefaultOption } = useChartLibrary()
 const charts = ref<ChartInstance[]>([])
 const addMode = ref<'independent' | 'mixed'>('independent')
+const displayMode = ref<'independent' | 'mixed'>('independent')
 
 // 选择图表类型
 const handleChartSelect = (type: ChartType) => {
@@ -88,12 +90,24 @@ const splitMixedCharts = () => {
 }
 </script>
 
-<style scoped lang="scss">
+<style scoped>
 .chart-designer {
+  height: 100%;
+  background: #f5f5f5;
+}
+
+.designer-tabs {
+  height: 100%;
+}
+
+.designer-tabs :deep(.el-tabs__content) {
+  height: calc(100% - 55px);
+}
+
+.simple-mode {
   display: flex;
-  height: 100vh;
-  width: 100%;
-  overflow: hidden;
+  flex-direction: column;
+  height: 100%;
 }
 
 .designer-sidebar {
