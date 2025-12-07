@@ -21,7 +21,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useChartLibrary } from '@/components/chart/composables/useChartLibrary'
+import { useChartLibrary } from '@/components/chart'
 import type { ChartType } from '../types'
 import {
   TrendCharts,

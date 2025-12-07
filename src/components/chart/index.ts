@@ -58,6 +58,9 @@ export {
   defaultGaugeChartOption
 } from './GaugeChart'
 
+// 导出 Hooks
+export * from './composables'
+
 // 图表组件映射
 export const ChartComponents = {
   line: LineChart,

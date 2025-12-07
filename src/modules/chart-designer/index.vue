@@ -30,7 +30,7 @@ import ChartSelector from './components/ChartSelector.vue'
 import ChartCanvas from './components/ChartCanvas.vue'
 import ChartDesigner from './components/chart-designer/src/chart-designer.vue'
 import type { ChartType, ChartInstance } from './types'
-import { useChartLibrary } from '@/components/chart/composables/useChartLibrary'
+import { useChartLibrary } from '@/components/chart'
 
 const { getChartDefaultOption } = useChartLibrary()
 const charts = ref<ChartInstance[]>([])
