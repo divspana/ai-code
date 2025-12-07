@@ -3,16 +3,14 @@
  */
 
 import { ref } from 'vue'
-import type { ChartLibraryItem, ChartType } from '../types'
+import type { ChartLibraryItem, ChartType } from '../../../modules/chart-designer/types'
 import type { EChartsOption } from 'echarts'
-import {
-  defaultLineChartOption,
-  defaultBarChartOption,
-  defaultPieChartOption,
-  defaultScatterChartOption,
-  defaultRadarChartOption,
-  defaultGaugeChartOption
-} from '@/components/chart'
+import { defaultLineChartOption } from '../LineChart'
+import { defaultBarChartOption } from '../BarChart'
+import { defaultPieChartOption } from '../PieChart'
+import { defaultScatterChartOption } from '../ScatterChart'
+import { defaultRadarChartOption } from '../RadarChart'
+import { defaultGaugeChartOption } from '../GaugeChart'
 
 export function useChartLibrary() {
   // 图表库数据
