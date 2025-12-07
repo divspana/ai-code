@@ -92,27 +92,18 @@ const splitMixedCharts = () => {
 
 <style scoped>
 .chart-designer {
+  display: flex;
   height: 100%;
   background: #f5f5f5;
-}
-
-.designer-tabs {
-  height: 100%;
-}
-
-.designer-tabs :deep(.el-tabs__content) {
-  height: calc(100% - 55px);
-}
-
-.simple-mode {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
+  gap: 0;
 }
 
 .designer-sidebar {
   width: 280px;
   flex-shrink: 0;
+  background: #fff;
+  border-right: 1px solid #e4e7ed;
+  overflow-y: auto;
 }
 
 .designer-main {
@@ -129,5 +120,6 @@ const splitMixedCharts = () => {
   display: flex;
   align-items: center;
   gap: 16px;
+  flex-shrink: 0;
 }
 </style>
