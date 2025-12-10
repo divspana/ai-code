@@ -1,7 +1,18 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Document, Edit, Tools, Grid, DataAnalysis, TrendCharts, Upload, Expand, Fold } from '@element-plus/icons-vue'
+import {
+  Document,
+  Edit,
+  Tools,
+  Grid,
+  DataAnalysis,
+  TrendCharts,
+  Upload,
+  FolderOpened,
+  Expand,
+  Fold
+} from '@element-plus/icons-vue'
 import ThemeSwitcher from '../components/ThemeSwitcher.vue'
 import { useTheme } from '../composables/useTheme'
 
@@ -49,14 +60,14 @@ const menuItems = [
     icon: TrendCharts
   },
   {
-    path: '/file-upload',
-    title: '文件上传',
-    icon: Upload
-  },
-  {
     path: '/file-upload-uppy',
     title: '文件上传 (Uppy)',
     icon: Upload
+  },
+  {
+    path: '/folder-upload',
+    title: '文件夹上传',
+    icon: FolderOpened
   },
   {
     path: '/chart-designer',
@@ -87,7 +98,7 @@ const handleMenuSelect = (path: string) => {
         <h2 v-if="!isCollapse" class="logo-title">Vue3 Admin</h2>
         <h2 v-else class="logo-title-collapsed">V3</h2>
       </div>
-      
+
       <el-menu
         :default-active="activeMenu"
         :collapse="isCollapse"
@@ -95,11 +106,7 @@ const handleMenuSelect = (path: string) => {
         class="sidebar-menu"
         @select="handleMenuSelect"
       >
-        <el-menu-item
-          v-for="item in menuItems"
-          :key="item.path"
-          :index="item.path"
-        >
+        <el-menu-item v-for="item in menuItems" :key="item.path" :index="item.path">
           <el-icon><component :is="item.icon" /></el-icon>
           <template #title>{{ item.title }}</template>
         </el-menu-item>
@@ -147,7 +154,9 @@ const handleMenuSelect = (path: string) => {
 
 .layout-aside {
   background: var(--theme-sidebar, #001529);
-  transition: width 0.3s, background 0.3s;
+  transition:
+    width 0.3s,
+    background 0.3s;
   display: flex;
   flex-direction: column;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);

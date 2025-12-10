@@ -61,15 +61,6 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/file-upload',
-    name: 'FileUpload',
-    component: () => import('../modules/file-upload/index.vue'),
-    meta: {
-      title: '文件上传',
-      icon: 'Upload'
-    }
-  },
-  {
     path: '/file-upload-uppy',
     name: 'FileUploadUppy',
     component: () => import('../modules/file-upload/UppyUpload.vue'),
@@ -85,6 +76,15 @@ const routes: RouteRecordRaw[] = [
     meta: {
       title: '图表设计器',
       icon: 'DataAnalysis'
+    }
+  },
+  {
+    path: '/folder-upload',
+    name: 'FolderUpload',
+    component: () => import('../views/FolderUploadDemo.vue'),
+    meta: {
+      title: '文件夹上传',
+      icon: 'FolderOpened'
     }
   }
 ]

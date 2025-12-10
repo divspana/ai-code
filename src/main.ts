@@ -9,9 +9,15 @@ import App from './App.vue'
 import router from './router'
 import { setupStore } from './store'
 import { setupRouterGuard } from './router/guard'
+import { setupMockUploadServer } from './api/mockUploadServer'
 
 async function bootstrap() {
   const app = createApp(App)
+
+  // 配置 Mock 上传服务器（开发环境）
+  if (import.meta.env.DEV) {
+    setupMockUploadServer()
+  }
 
   // 配置 store
   setupStore(app)

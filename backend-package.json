@@ -1,0 +1,22 @@
+{
+  "name": "folder-upload-backend",
+  "version": "1.0.0",
+  "description": "Backend server for folder upload with chunked file upload support",
+  "main": "backend-example.js",
+  "scripts": {
+    "start": "node backend-example.js",
+    "dev": "nodemon backend-example.js"
+  },
+  "keywords": ["file-upload", "chunked-upload", "express", "multer"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
+    "fs-extra": "^11.1.1",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

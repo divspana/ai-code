@@ -56,6 +56,8 @@ module.exports = {
     'dist',
     'node_modules',
     '*.d.ts',
-    'vite.config.ts'
+    'vite.config.ts',
+    'backend-example.js',
+    'backend-package.json'
   ]
 }
