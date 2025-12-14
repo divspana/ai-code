@@ -10,6 +10,7 @@ import {
   TrendCharts,
   Upload,
   FolderOpened,
+  Monitor,
   Expand,
   Fold
 } from '@element-plus/icons-vue'
@@ -73,6 +74,11 @@ const menuItems = [
     path: '/chart-designer',
     title: '图表设计器',
     icon: DataAnalysis
+  },
+  {
+    path: '/playground',
+    title: '组件 Playground',
+    icon: Monitor
   }
 ]
 

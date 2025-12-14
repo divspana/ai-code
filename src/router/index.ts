@@ -86,6 +86,15 @@ const routes: RouteRecordRaw[] = [
       title: '文件夹上传',
       icon: 'FolderOpened'
     }
+  },
+  {
+    path: '/playground',
+    name: 'Playground',
+    component: () => import('../views/PlaygroundView.vue'),
+    meta: {
+      title: '组件 Playground',
+      icon: 'Monitor'
+    }
   }
 ]
 
