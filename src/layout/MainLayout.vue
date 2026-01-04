@@ -11,6 +11,8 @@ import {
   Upload,
   FolderOpened,
   Monitor,
+  Operation,
+  Setting,
   Expand,
   Fold
 } from '@element-plus/icons-vue'
@@ -79,6 +81,16 @@ const menuItems = [
     path: '/playground',
     title: '组件 Playground',
     icon: Monitor
+  },
+  {
+    path: '/data-comparison',
+    title: '数据对比',
+    icon: Operation
+  },
+  {
+    path: '/wafer-map-config',
+    title: 'Wafer Map 配置',
+    icon: Setting
   }
 ]
 

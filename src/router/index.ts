@@ -95,6 +95,24 @@ const routes: RouteRecordRaw[] = [
       title: '组件 Playground',
       icon: 'Monitor'
     }
+  },
+  {
+    path: '/data-comparison',
+    name: 'DataComparison',
+    component: () => import('../views/DataComparisonView.vue'),
+    meta: {
+      title: '数据对比',
+      icon: 'Operation'
+    }
+  },
+  {
+    path: '/wafer-map-config',
+    name: 'WaferMapConfig',
+    component: () => import('../views/WaferMapConfigView.vue'),
+    meta: {
+      title: 'Wafer Map 配置',
+      icon: 'Setting'
+    }
   }
 ]
 
