@@ -32,9 +32,9 @@ const totalDies = ref(0)
 const validDies = ref(0)
 
 const generateWaferMap = () => {
-  if (!waferCanvas.value) return
-
   const canvas = waferCanvas.value
+  if (!canvas) return
+
   const ctx = canvas.getContext('2d')
   if (!ctx) return
 
@@ -47,12 +47,44 @@ const generateWaferMap = () => {
   // 清空画布
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-  // 计算缩放比例 - 确保整个晶圆都在画布内（包括 notch）
+  // 计算缩放比例和中心点
   const scale = (canvasSize * 0.85) / props.config.diameter
   const centerX = canvasSize / 2
   const centerY = canvasSize / 2
 
-  // 绘制 Wafer 外圆（包含倒角区域）
+  // 绘制晶圆圆圈（倒角和有效区域）
+  const { waferOuterRadius, waferInnerRadius } = drawWaferCircles(ctx, centerX, centerY, scale)
+
+  // 绘制 Notch
+  drawNotch(ctx, centerX, centerY, waferOuterRadius)
+
+  // 绘制 Dies
+  const { validDiePositions, totalCount, validCount } = drawDies(
+    ctx,
+    centerX,
+    centerY,
+    scale,
+    waferInnerRadius
+  )
+
+  totalDies.value = totalCount
+  validDies.value = validCount
+
+  // 绘制 Reticle 边框（如果开关打开）
+  if (props.config.showReticleBorder) {
+    const dieWidthWithScribe = props.config.dieWidth + props.config.scribeLineX
+    const dieHeightWithScribe = props.config.dieHeight + props.config.scribeLineY
+    drawReticleBorders(ctx, scale, dieWidthWithScribe, dieHeightWithScribe, validDiePositions)
+  }
+}
+
+// 绘制晶圆圆圈（倒角和有效区域）
+const drawWaferCircles = (
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  centerY: number,
+  scale: number
+) => {
   const waferOuterRadius = (props.config.diameter / 2) * scale
   const waferInnerRadius = (props.config.diameter / 2 - props.config.bevel) * scale
 
@@ -74,75 +106,141 @@ const generateWaferMap = () => {
   ctx.lineWidth = 1.5
   ctx.stroke()
 
-  // 绘制 Notch
-  drawNotch(ctx, centerX, centerY, waferOuterRadius)
+  return { waferOuterRadius, waferInnerRadius }
+}
 
-  // 计算 Die 尺寸（包含 scribe line）
+// 绘制 Dies
+const drawDies = (
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  centerY: number,
+  scale: number,
+  waferInnerRadius: number
+) => {
   const dieWidthWithScribe = props.config.dieWidth + props.config.scribeLineX
   const dieHeightWithScribe = props.config.dieHeight + props.config.scribeLineY
 
-  // 计算需要的行列数
-  const cols = Math.ceil(props.config.diameter / dieWidthWithScribe) + 2
-  const rows = Math.ceil(props.config.diameter / dieHeightWithScribe) + 2
+  // 第一步：计算理论上需要多少行列才能覆盖整个晶圆
+  // 使用晶圆半径计算，而不是直径
+  const waferRadius = props.config.diameter / 2
+  const maxRows = Math.ceil(waferRadius / dieHeightWithScribe) * 2 + 2
+  const maxCols = Math.ceil(waferRadius / dieWidthWithScribe) * 2 + 2
 
-  let totalCount = 0
-  let validCount = 0
+  console.log(
+    `Theoretical grid: ${maxRows}x${maxCols}, wafer diameter=${props.config.diameter}mm, die=${props.config.dieWidth}x${props.config.dieHeight}mm`
+  )
 
-  // 存储有效 Die 的位置信息（用于 Reticle 边框绘制）
-  const validDiePositions: Array<{ row: number; col: number; canvasX: number; canvasY: number }> =
-    []
+  // 第二步：生成理论 Die 布局（基于整数索引）
+  interface DieInfo {
+    row: number
+    col: number
+    centerX_mm: number // Die 中心的理论坐标（mm）
+    centerY_mm: number
+    canvasX: number // Die 左上角的画布坐标
+    canvasY: number
+  }
 
-  // 绘制 Dies - 简单均匀布局
-  for (let row = -rows / 2; row < rows / 2; row++) {
-    for (let col = -cols / 2; col < cols / 2; col++) {
-      // 简单布局：每个 Die 按照固定间距排列（包含 Scribe Line）
-      let dieX = col * dieWidthWithScribe + props.config.dieOffsetX
-      let dieY = row * dieHeightWithScribe + props.config.dieOffsetY
+  const allDies: DieInfo[] = []
 
-      // 转换为画布坐标
-      const canvasX = centerX + dieX * scale * (props.config.xPositive === 'RIGHT' ? 1 : -1)
-      const canvasY = centerY - dieY * scale * (props.config.yPositive === 'UP' ? 1 : -1)
+  for (let row = -Math.floor(maxRows / 2); row <= Math.floor(maxRows / 2); row++) {
+    for (let col = -Math.floor(maxCols / 2); col <= Math.floor(maxCols / 2); col++) {
+      // 计算 Die 中心的理论坐标（mm）
+      const centerX_mm = col * dieWidthWithScribe + props.config.dieOffsetX
+      const centerY_mm = row * dieHeightWithScribe + props.config.dieOffsetY
 
-      // 检查 Die 的所有四个角是否都在有效区域内
-      const dieCorners = [
-        { x: canvasX, y: canvasY },
-        { x: canvasX + props.config.dieWidth * scale, y: canvasY },
-        { x: canvasX, y: canvasY + props.config.dieHeight * scale },
-        { x: canvasX + props.config.dieWidth * scale, y: canvasY + props.config.dieHeight * scale }
-      ]
+      // 转换为画布坐标（Die 左上角）
+      const canvasX =
+        centerX +
+        (centerX_mm - props.config.dieWidth / 2) *
+          scale *
+          (props.config.xPositive === 'RIGHT' ? 1 : -1)
+      const canvasY =
+        centerY -
+        (centerY_mm + props.config.dieHeight / 2) *
+          scale *
+          (props.config.yPositive === 'UP' ? 1 : -1)
 
-      const allCornersInside = dieCorners.every(corner => {
-        const dx = corner.x - centerX
-        const dy = corner.y - centerY
-        return Math.sqrt(dx * dx + dy * dy) <= waferInnerRadius
-      })
+      allDies.push({ row, col, centerX_mm, centerY_mm, canvasX, canvasY })
+    }
+  }
 
-      // 只绘制完全在有效区域内的 Die
-      if (allCornersInside) {
-        totalCount++
-        validCount++
+  // 第三步：判断每个 Die 是否在有效区域内
+  const tolerance = 0.01 * scale
+  const validDiePositions: DieInfo[] = []
+  let rejectedCount = 0
+  const rejectedDies: Array<{ row: number; col: number; maxDistance: number }> = []
 
-        // 存储有效 Die 的位置信息
-        validDiePositions.push({ row, col, canvasX, canvasY })
+  for (const die of allDies) {
+    // 检查 Die 的四个角是否都在有效区域内
+    const dieCorners = [
+      { x: die.canvasX, y: die.canvasY },
+      { x: die.canvasX + props.config.dieWidth * scale, y: die.canvasY },
+      { x: die.canvasX, y: die.canvasY + props.config.dieHeight * scale },
+      {
+        x: die.canvasX + props.config.dieWidth * scale,
+        y: die.canvasY + props.config.dieHeight * scale
+      }
+    ]
 
-        // 绘制 Die（蓝色）
-        ctx.fillStyle = '#409EFF'
-        ctx.fillRect(
-          canvasX,
-          canvasY,
-          props.config.dieWidth * scale,
-          props.config.dieHeight * scale
-        )
+    const cornerDistances = dieCorners.map(corner => {
+      const dx = corner.x - centerX
+      const dy = corner.y - centerY
+      return Math.sqrt(dx * dx + dy * dy)
+    })
+
+    const allCornersInside = cornerDistances.every(dist => dist <= waferInnerRadius + tolerance)
+
+    if (allCornersInside) {
+      validDiePositions.push(die)
+    } else {
+      // 调试：检查 Die 中心是否在有效区域内
+      const dieCenterCanvasX = die.canvasX + (props.config.dieWidth * scale) / 2
+      const dieCenterCanvasY = die.canvasY + (props.config.dieHeight * scale) / 2
+      const centerDistance = Math.sqrt(
+        Math.pow(dieCenterCanvasX - centerX, 2) + Math.pow(dieCenterCanvasY - centerY, 2)
+      )
+
+      if (centerDistance <= waferInnerRadius) {
+        rejectedCount++
+        const maxDistance = Math.max(...cornerDistances)
+        const exceedBy = maxDistance - waferInnerRadius
+        if (rejectedDies.length < 20) {
+          rejectedDies.push({ row: die.row, col: die.col, maxDistance: exceedBy / scale })
+        }
       }
     }
   }
 
-  totalDies.value = totalCount
-  validDies.value = validCount
+  // 第四步：绘制有效的 Die
+  ctx.fillStyle = '#409EFF'
+  for (const die of validDiePositions) {
+    ctx.fillRect(
+      die.canvasX,
+      die.canvasY,
+      props.config.dieWidth * scale,
+      props.config.dieHeight * scale
+    )
+  }
 
-  // 绘制 Reticle 边框（如果开关打开）
-  if (props.config.showReticleBorder) {
-    drawReticleBorders(ctx, scale, dieWidthWithScribe, dieHeightWithScribe, validDiePositions)
+  console.log(`Valid Dies: ${validDiePositions.length}, Rejected (center inside): ${rejectedCount}`)
+  if (rejectedDies.length > 0) {
+    console.log(
+      'Sample rejected dies:',
+      rejectedDies
+        .map(d => `(${d.row},${d.col}) exceed by ${d.maxDistance.toFixed(4)}mm`)
+        .join(', ')
+    )
+  }
+
+  return {
+    validDiePositions: validDiePositions.map(d => ({
+      row: d.row,
+      col: d.col,
+      canvasX: d.canvasX,
+      canvasY: d.canvasY
+    })),
+    totalCount: validDiePositions.length,
+    validCount: validDiePositions.length
   }
 }
 
