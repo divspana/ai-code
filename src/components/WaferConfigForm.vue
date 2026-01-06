@@ -8,71 +8,148 @@
 
     <el-form :model="modelValue" label-width="140px" size="default">
       <el-form-item label="Diameter">
-        <el-input-number :model-value="modelValue.diameter" @update:model-value="(val) => updateField('diameter', val)" :min="100" :max="450" :step="50" />
+        <el-input-number
+          :model-value="modelValue.diameter"
+          @update:model-value="val => updateField('diameter', val)"
+          :min="100"
+          :max="450"
+          :step="50"
+        />
         <span class="unit">mm</span>
       </el-form-item>
 
       <el-form-item label="Die Width">
-        <el-input-number :model-value="modelValue.dieWidth" @update:model-value="(val) => updateField('dieWidth', val)" :min="1" :max="100" :step="0.1" />
+        <el-input-number
+          :model-value="modelValue.dieWidth"
+          @update:model-value="val => updateField('dieWidth', val)"
+          :min="1"
+          :max="100"
+          :step="0.1"
+        />
         <span class="unit">mm</span>
       </el-form-item>
 
       <el-form-item label="Die Height">
-        <el-input-number :model-value="modelValue.dieHeight" @update:model-value="(val) => updateField('dieHeight', val)" :min="1" :max="100" :step="0.1" />
+        <el-input-number
+          :model-value="modelValue.dieHeight"
+          @update:model-value="val => updateField('dieHeight', val)"
+          :min="1"
+          :max="100"
+          :step="0.1"
+        />
         <span class="unit">mm</span>
       </el-form-item>
 
       <el-form-item label="Reticle X">
-        <el-input-number :model-value="modelValue.reticleX" @update:model-value="(val) => updateField('reticleX', val)" :min="1" :max="20" />
+        <el-input-number
+          :model-value="modelValue.reticleX"
+          @update:model-value="val => updateField('reticleX', val)"
+          :min="1"
+          :max="20"
+        />
       </el-form-item>
 
       <el-form-item label="Reticle Y">
-        <el-input-number :model-value="modelValue.reticleY" @update:model-value="(val) => updateField('reticleY', val)" :min="1" :max="20" />
+        <el-input-number
+          :model-value="modelValue.reticleY"
+          @update:model-value="val => updateField('reticleY', val)"
+          :min="1"
+          :max="20"
+        />
+      </el-form-item>
+
+      <el-form-item label="Show Reticle Border">
+        <el-switch
+          :model-value="modelValue.showReticleBorder"
+          @update:model-value="val => updateField('showReticleBorder', val)"
+        />
       </el-form-item>
 
       <el-form-item label="Scribe Line X">
-        <el-input-number :model-value="modelValue.scribeLineX" @update:model-value="(val) => updateField('scribeLineX', val)" :min="0" :max="5" :step="0.01" />
+        <el-input-number
+          :model-value="modelValue.scribeLineX"
+          @update:model-value="val => updateField('scribeLineX', val)"
+          :min="0"
+          :max="5"
+          :step="0.01"
+        />
         <span class="unit">mm</span>
       </el-form-item>
 
       <el-form-item label="Scribe Line Y">
-        <el-input-number :model-value="modelValue.scribeLineY" @update:model-value="(val) => updateField('scribeLineY', val)" :min="0" :max="5" :step="0.01" />
+        <el-input-number
+          :model-value="modelValue.scribeLineY"
+          @update:model-value="val => updateField('scribeLineY', val)"
+          :min="0"
+          :max="5"
+          :step="0.01"
+        />
         <span class="unit">mm</span>
       </el-form-item>
 
       <el-divider />
 
       <el-form-item label="Offset By">
-        <el-radio-group :model-value="modelValue.offsetBy" @update:model-value="(val) => updateField('offsetBy', val)">
+        <el-radio-group
+          :model-value="modelValue.offsetBy"
+          @update:model-value="val => updateField('offsetBy', val)"
+        >
           <el-radio label="By Die">By Die</el-radio>
           <el-radio label="By Reticle">By Reticle</el-radio>
         </el-radio-group>
       </el-form-item>
 
       <el-form-item label="Die Offset X">
-        <el-input-number :model-value="modelValue.dieOffsetX" @update:model-value="(val) => updateField('dieOffsetX', val)" :min="-50" :max="50" :step="0.1" />
+        <el-input-number
+          :model-value="modelValue.dieOffsetX"
+          @update:model-value="val => updateField('dieOffsetX', val)"
+          :min="-50"
+          :max="50"
+          :step="0.1"
+        />
         <span class="unit">mm</span>
       </el-form-item>
 
       <el-form-item label="Die Offset Y">
-        <el-input-number :model-value="modelValue.dieOffsetY" @update:model-value="(val) => updateField('dieOffsetY', val)" :min="-50" :max="50" :step="0.1" />
+        <el-input-number
+          :model-value="modelValue.dieOffsetY"
+          @update:model-value="val => updateField('dieOffsetY', val)"
+          :min="-50"
+          :max="50"
+          :step="0.1"
+        />
         <span class="unit">mm</span>
       </el-form-item>
 
       <el-form-item label="Reticle Offset X">
-        <el-input-number :model-value="modelValue.reticleOffsetX" @update:model-value="(val) => updateField('reticleOffsetX', val)" :min="-50" :max="50" :step="0.01" />
+        <el-input-number
+          :model-value="modelValue.reticleOffsetX"
+          @update:model-value="val => updateField('reticleOffsetX', val)"
+          :min="-50"
+          :max="50"
+          :step="0.01"
+        />
         <span class="unit">mm</span>
       </el-form-item>
 
       <el-form-item label="Reticle Offset Y">
-        <el-input-number :model-value="modelValue.reticleOffsetY" @update:model-value="(val) => updateField('reticleOffsetY', val)" :min="-50" :max="50" :step="0.01" />
+        <el-input-number
+          :model-value="modelValue.reticleOffsetY"
+          @update:model-value="val => updateField('reticleOffsetY', val)"
+          :min="-50"
+          :max="50"
+          :step="0.01"
+        />
         <span class="unit">mm</span>
       </el-form-item>
 
       <el-divider />
 
       <el-form-item label="Notch">
-        <el-select :model-value="modelValue.notch" @update:model-value="(val) => updateField('notch', val)">
+        <el-select
+          :model-value="modelValue.notch"
+          @update:model-value="val => updateField('notch', val)"
+        >
           <el-option label="UP" value="UP" />
           <el-option label="DOWN" value="DOWN" />
           <el-option label="LEFT" value="LEFT" />
@@ -81,29 +158,51 @@
       </el-form-item>
 
       <el-form-item label="X Positive">
-        <el-select :model-value="modelValue.xPositive" @update:model-value="(val) => updateField('xPositive', val)">
+        <el-select
+          :model-value="modelValue.xPositive"
+          @update:model-value="val => updateField('xPositive', val)"
+        >
           <el-option label="RIGHT" value="RIGHT" />
           <el-option label="LEFT" value="LEFT" />
         </el-select>
       </el-form-item>
 
       <el-form-item label="Y Positive">
-        <el-select :model-value="modelValue.yPositive" @update:model-value="(val) => updateField('yPositive', val)">
+        <el-select
+          :model-value="modelValue.yPositive"
+          @update:model-value="val => updateField('yPositive', val)"
+        >
           <el-option label="UP" value="UP" />
           <el-option label="DOWN" value="DOWN" />
         </el-select>
       </el-form-item>
 
       <el-form-item label="Center X">
-        <el-input-number :model-value="modelValue.centerX" @update:model-value="(val) => updateField('centerX', val)" :min="-100" :max="100" />
+        <el-input-number
+          :model-value="modelValue.centerX"
+          @update:model-value="val => updateField('centerX', val)"
+          :min="-100"
+          :max="100"
+        />
       </el-form-item>
 
       <el-form-item label="Center Y">
-        <el-input-number :model-value="modelValue.centerY" @update:model-value="(val) => updateField('centerY', val)" :min="-100" :max="100" />
+        <el-input-number
+          :model-value="modelValue.centerY"
+          @update:model-value="val => updateField('centerY', val)"
+          :min="-100"
+          :max="100"
+        />
       </el-form-item>
 
       <el-form-item label="Bevel">
-        <el-input-number :model-value="modelValue.bevel" @update:model-value="(val) => updateField('bevel', val)" :min="0" :max="10" :step="0.1" />
+        <el-input-number
+          :model-value="modelValue.bevel"
+          @update:model-value="val => updateField('bevel', val)"
+          :min="0"
+          :max="10"
+          :step="0.1"
+        />
         <span class="unit">mm</span>
       </el-form-item>
 
@@ -115,7 +214,6 @@
 </template>
 
 <script setup lang="ts">
-
 export interface WaferConfig {
   diameter: number
   dieWidth: number
@@ -135,6 +233,7 @@ export interface WaferConfig {
   centerX: number
   centerY: number
   bevel: number
+  showReticleBorder: boolean
 }
 
 interface Props {
@@ -146,10 +245,13 @@ const emit = defineEmits<{
   'update:modelValue': [value: WaferConfig]
 }>()
 
-const updateField = <K extends keyof WaferConfig>(field: K, value: WaferConfig[K] | null | undefined) => {
+const updateField = <K extends keyof WaferConfig>(
+  field: K,
+  value: WaferConfig[K] | null | undefined
+) => {
   // el-input-number 可能返回 null，需要过滤
   if (value === null || value === undefined) return
-  
+
   const newConfig = { ...props.modelValue, [field]: value }
   emit('update:modelValue', newConfig)
 }
@@ -173,7 +275,8 @@ const handleReset = () => {
     yPositive: 'UP',
     centerX: 0,
     centerY: 0,
-    bevel: 3
+    bevel: 3,
+    showReticleBorder: false
   })
 }
 </script>

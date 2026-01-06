@@ -55,7 +55,7 @@ const generateWaferMap = () => {
   // 绘制 Wafer 外圆（包含倒角区域）
   const waferOuterRadius = (props.config.diameter / 2) * scale
   const waferInnerRadius = (props.config.diameter / 2 - props.config.bevel) * scale
-  
+
   // 绘制倒角区域（灰色环形）
   ctx.beginPath()
   ctx.arc(centerX, centerY, waferOuterRadius, 0, Math.PI * 2)
@@ -64,7 +64,7 @@ const generateWaferMap = () => {
   ctx.strokeStyle = '#999'
   ctx.lineWidth = 2
   ctx.stroke()
-  
+
   // 绘制有效区域（浅灰色）
   ctx.beginPath()
   ctx.arc(centerX, centerY, waferInnerRadius, 0, Math.PI * 2)
@@ -87,6 +87,10 @@ const generateWaferMap = () => {
 
   let totalCount = 0
   let validCount = 0
+
+  // 存储有效 Die 的位置信息（用于 Reticle 边框绘制）
+  const validDiePositions: Array<{ row: number; col: number; canvasX: number; canvasY: number }> =
+    []
 
   // 绘制 Dies - 简单均匀布局
   for (let row = -rows / 2; row < rows / 2; row++) {
@@ -118,19 +122,12 @@ const generateWaferMap = () => {
         totalCount++
         validCount++
 
+        // 存储有效 Die 的位置信息
+        validDiePositions.push({ row, col, canvasX, canvasY })
+
         // 绘制 Die（蓝色）
         ctx.fillStyle = '#409EFF'
         ctx.fillRect(
-          canvasX,
-          canvasY,
-          props.config.dieWidth * scale,
-          props.config.dieHeight * scale
-        )
-
-        // 绘制 Die 边框
-        ctx.strokeStyle = '#fff'
-        ctx.lineWidth = 0.5
-        ctx.strokeRect(
           canvasX,
           canvasY,
           props.config.dieWidth * scale,
@@ -142,9 +139,89 @@ const generateWaferMap = () => {
 
   totalDies.value = totalCount
   validDies.value = validCount
+
+  // 绘制 Reticle 边框（如果开关打开）
+  if (props.config.showReticleBorder) {
+    drawReticleBorders(ctx, scale, dieWidthWithScribe, dieHeightWithScribe, validDiePositions)
+  }
 }
 
-const drawNotch = (ctx: CanvasRenderingContext2D, centerX: number, centerY: number, radius: number) => {
+const drawReticleBorders = (
+  ctx: CanvasRenderingContext2D,
+  scale: number,
+  dieWidthWithScribe: number,
+  dieHeightWithScribe: number,
+  validDiePositions: Array<{ row: number; col: number; canvasX: number; canvasY: number }>
+) => {
+  if (validDiePositions.length === 0) return
+
+  // 找到中心 Die (row=0, col=0) 作为参考点
+  let centerDie = validDiePositions.find(die => die.row === 0 && die.col === 0)
+
+  if (!centerDie) {
+    // 如果中心 Die 不存在，找最接近中心的 Die
+    centerDie = validDiePositions.reduce((closest, die) => {
+      const distCurrent = Math.abs(die.row) + Math.abs(die.col)
+      const distClosest = Math.abs(closest.row) + Math.abs(closest.col)
+      return distCurrent < distClosest ? die : closest
+    })
+  }
+
+  // 设置 Reticle 边框样式
+  ctx.strokeStyle = '#FF6B6B'
+  // 边框线宽等于 Scribe Line 的宽度，这样边框完全填充 Scribe Line
+  ctx.lineWidth = Math.max(props.config.scribeLineX, props.config.scribeLineY) * scale
+
+  // 根据有效 Die 的位置，计算并绘制 Reticle 边框
+  // 使用 Set 来存储已绘制的 Reticle，避免重复
+  const drawnReticles = new Set<string>()
+
+  validDiePositions.forEach(die => {
+    // 计算这个 Die 所属的 Reticle 索引
+    // 使用 floor 来处理小数索引
+    const reticleRow = Math.floor(die.row / props.config.reticleY)
+    const reticleCol = Math.floor(die.col / props.config.reticleX)
+
+    const reticleKey = `${reticleRow},${reticleCol}`
+
+    // 如果这个 Reticle 还没有绘制过
+    if (!drawnReticles.has(reticleKey)) {
+      drawnReticles.add(reticleKey)
+
+      // 计算这个 Reticle 左上角的 Die 行列索引
+      const startRow = reticleRow * props.config.reticleY
+      const startCol = reticleCol * props.config.reticleX
+
+      // 计算 Reticle 左上角 Die 的画布位置
+      const rowOffset = startRow - centerDie.row
+      const colOffset = startCol - centerDie.col
+
+      const firstDieX = centerDie.canvasX + colOffset * dieWidthWithScribe * scale
+      const firstDieY = centerDie.canvasY + rowOffset * dieHeightWithScribe * scale
+
+      // 边框框选整个 N×N Die 区域
+      // 边框中心位置：从第一个 Die 左边缘向左偏移半个 Scribe Line
+      const borderX = firstDieX - (props.config.scribeLineX / 2) * scale
+      const borderY = firstDieY - (props.config.scribeLineY / 2) * scale
+
+      // 边框尺寸：N 个 Die + (N-1) 个 Scribe Line + 两端各半个 Scribe Line
+      // = N 个 Die + N 个 Scribe Line
+      const borderWidth =
+        props.config.reticleX * (props.config.dieWidth + props.config.scribeLineX) * scale
+      const borderHeight =
+        props.config.reticleY * (props.config.dieHeight + props.config.scribeLineY) * scale
+
+      ctx.strokeRect(borderX, borderY, borderWidth, borderHeight)
+    }
+  })
+}
+
+const drawNotch = (
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  centerY: number,
+  radius: number
+) => {
   const notchSize = 10
   ctx.fillStyle = '#fff'
   ctx.strokeStyle = '#666'
@@ -203,9 +280,13 @@ onMounted(() => {
   })
 })
 
-watch(() => props.config, () => {
-  generateWaferMap()
-}, { deep: true })
+watch(
+  () => props.config,
+  () => {
+    generateWaferMap()
+  },
+  { deep: true }
+)
 </script>
 
 <style scoped lang="scss">
@@ -234,7 +315,7 @@ watch(() => props.config, () => {
         }
 
         &:last-child {
-          color: #409EFF;
+          color: #409eff;
           font-weight: 600;
         }
       }

@@ -43,7 +43,8 @@ const config = ref<WaferConfig>({
   yPositive: 'UP',
   centerX: 0,
   centerY: 0,
-  bevel: 3
+  bevel: 3,
+  showReticleBorder: false
 })
 </script>
 
@@ -130,7 +131,7 @@ const config = ref<WaferConfig>({
           }
 
           &:last-child {
-            color: #409EFF;
+            color: #409eff;
             font-weight: 600;
           }
         }
