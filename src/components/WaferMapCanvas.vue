@@ -11,8 +11,29 @@
     </template>
 
     <div class="canvas-container" ref="canvasContainer">
-      <canvas ref="waferCanvas" @click="handleCanvasClick"></canvas>
+      <canvas
+        ref="waferCanvas"
+        @mousedown="handleMouseDown"
+        @mousemove="handleMouseMove"
+        @mouseup="handleMouseUp"
+        @mouseleave="handleMouseLeave"
+        style="cursor: crosshair"
+      ></canvas>
     </div>
+
+    <!-- 放大视图对话框 -->
+    <el-dialog
+      v-model="showZoomDialog"
+      title="放大视图"
+      width="80%"
+      center
+      :close-on-click-modal="false"
+      destroy-on-close
+    >
+      <div class="zoom-dialog-content">
+        <canvas ref="zoomCanvas" class="zoom-canvas"></canvas>
+      </div>
+    </el-dialog>
   </el-card>
 </template>
 
@@ -27,9 +48,17 @@ interface Props {
 const props = defineProps<Props>()
 
 const waferCanvas = ref<HTMLCanvasElement>()
+const zoomCanvas = ref<HTMLCanvasElement>()
 const canvasContainer = ref<HTMLDivElement>()
 const totalDies = ref(0)
 const validDies = ref(0)
+
+// 框选放大相关状态
+const isSelecting = ref(false)
+const selectionStart = ref({ x: 0, y: 0 })
+const selectionEnd = ref({ x: 0, y: 0 })
+const showZoomDialog = ref(false)
+const zoomDialogArea = ref({ minX: 0, minY: 0, maxX: 0, maxY: 0 })
 
 const generateWaferMap = () => {
   const canvas = waferCanvas.value
@@ -361,7 +390,8 @@ const drawNotch = (
   }
 }
 
-const handleCanvasClick = (event: MouseEvent) => {
+// 鼠标按下 - 开始框选
+const handleMouseDown = (event: MouseEvent) => {
   const canvas = waferCanvas.value
   if (!canvas) return
 
@@ -369,7 +399,138 @@ const handleCanvasClick = (event: MouseEvent) => {
   const x = event.clientX - rect.left
   const y = event.clientY - rect.top
 
-  console.log('Clicked at:', { x, y })
+  isSelecting.value = true
+  selectionStart.value = { x, y }
+  selectionEnd.value = { x, y }
+}
+
+// 鼠标移动 - 更新框选区域
+const handleMouseMove = (event: MouseEvent) => {
+  if (!isSelecting.value) return
+
+  const canvas = waferCanvas.value
+  if (!canvas) return
+
+  const rect = canvas.getBoundingClientRect()
+  const x = event.clientX - rect.left
+  const y = event.clientY - rect.top
+
+  selectionEnd.value = { x, y }
+
+  // 重绘画布并绘制框选矩形
+  generateWaferMap()
+  drawSelectionRect()
+}
+
+// 鼠标抬起 - 完成框选并弹出对话框
+const handleMouseUp = (event: MouseEvent) => {
+  if (!isSelecting.value) return
+
+  isSelecting.value = false
+
+  const canvas = waferCanvas.value
+  if (!canvas) return
+
+  const rect = canvas.getBoundingClientRect()
+  const x = event.clientX - rect.left
+  const y = event.clientY - rect.top
+
+  selectionEnd.value = { x, y }
+
+  // 计算选择区域
+  const minX = Math.min(selectionStart.value.x, selectionEnd.value.x)
+  const minY = Math.min(selectionStart.value.y, selectionEnd.value.y)
+  const maxX = Math.max(selectionStart.value.x, selectionEnd.value.x)
+  const maxY = Math.max(selectionStart.value.y, selectionEnd.value.y)
+  const width = maxX - minX
+  const height = maxY - minY
+
+  // 只有选择区域足够大时才弹出对话框（避免误触）
+  if (width > 20 && height > 20) {
+    // 扩展选择区域以包含完整的 Die
+    const expandedArea = expandSelectionToCompleteDies(minX, minY, maxX, maxY)
+
+    zoomDialogArea.value = expandedArea
+    showZoomDialog.value = true
+  }
+
+  // 重绘画布以清除框选矩形
+  generateWaferMap()
+}
+
+// 扩展选择区域以包含完整的 Die
+const expandSelectionToCompleteDies = (minX: number, minY: number, maxX: number, maxY: number) => {
+  const canvas = waferCanvas.value
+  if (!canvas) return { minX, minY, maxX, maxY }
+
+  // 计算当前的缩放参数
+  const canvasSize = Math.min(canvas.width, canvas.height)
+  const scale = (canvasSize * 0.85) / props.config.diameter
+  const centerX = canvasSize / 2
+  const centerY = canvasSize / 2
+
+  // Die 尺寸（包含 scribe line）
+  const dieWidthWithScribe = (props.config.dieWidth + props.config.scribeLineX) * scale
+  const dieHeightWithScribe = (props.config.dieHeight + props.config.scribeLineY) * scale
+
+  // 将画布坐标转换为 Die 坐标系
+  // 计算选择区域相对于中心的偏移
+  const selMinX_offset = minX - centerX
+  const selMinY_offset = minY - centerY
+  const selMaxX_offset = maxX - centerX
+  const selMaxY_offset = maxY - centerY
+
+  // 计算包含的 Die 范围（向下取整和向上取整）
+  const minDieCol = Math.floor(selMinX_offset / dieWidthWithScribe)
+  const maxDieCol = Math.ceil(selMaxX_offset / dieWidthWithScribe)
+  const minDieRow = Math.floor(selMinY_offset / dieHeightWithScribe)
+  const maxDieRow = Math.ceil(selMaxY_offset / dieHeightWithScribe)
+
+  // 将 Die 范围转换回画布坐标
+  const expandedMinX = centerX + minDieCol * dieWidthWithScribe
+  const expandedMinY = centerY + minDieRow * dieHeightWithScribe
+  const expandedMaxX = centerX + maxDieCol * dieWidthWithScribe
+  const expandedMaxY = centerY + maxDieRow * dieHeightWithScribe
+
+  return {
+    minX: expandedMinX,
+    minY: expandedMinY,
+    maxX: expandedMaxX,
+    maxY: expandedMaxY
+  }
+}
+
+// 鼠标离开 - 取消框选
+const handleMouseLeave = () => {
+  if (isSelecting.value) {
+    isSelecting.value = false
+    generateWaferMap()
+  }
+}
+
+// 绘制框选矩形
+const drawSelectionRect = () => {
+  const canvas = waferCanvas.value
+  if (!canvas) return
+
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  const minX = Math.min(selectionStart.value.x, selectionEnd.value.x)
+  const minY = Math.min(selectionStart.value.y, selectionEnd.value.y)
+  const width = Math.abs(selectionEnd.value.x - selectionStart.value.x)
+  const height = Math.abs(selectionEnd.value.y - selectionStart.value.y)
+
+  // 绘制淡蓝色填充
+  ctx.fillStyle = 'rgba(173, 216, 230, 0.3)'
+  ctx.fillRect(minX, minY, width, height)
+
+  // 绘制边框
+  ctx.strokeStyle = '#409EFF'
+  ctx.lineWidth = 2
+  ctx.setLineDash([5, 5])
+  ctx.strokeRect(minX, minY, width, height)
+  ctx.setLineDash([])
 }
 
 onMounted(() => {
@@ -385,6 +546,77 @@ watch(
   },
   { deep: true }
 )
+
+// 监听对话框打开，绘制放大视图
+watch(showZoomDialog, newVal => {
+  if (newVal) {
+    nextTick(() => {
+      drawZoomView()
+    })
+  }
+})
+
+// 绘制放大视图
+const drawZoomView = () => {
+  const canvas = zoomCanvas.value
+  if (!canvas) return
+
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  // 设置画布大小为较大的尺寸以显示更多细节
+  const zoomCanvasSize = 1000
+  canvas.width = zoomCanvasSize
+  canvas.height = zoomCanvasSize
+
+  // 清空画布
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+  // 计算选中区域的尺寸（原始画布坐标）
+  const selectedWidth = zoomDialogArea.value.maxX - zoomDialogArea.value.minX
+  const selectedHeight = zoomDialogArea.value.maxY - zoomDialogArea.value.minY
+
+  // 计算缩放比例，使选中区域填充放大画布
+  const scaleX = zoomCanvasSize / selectedWidth
+  const scaleY = zoomCanvasSize / selectedHeight
+  const zoomScale = Math.min(scaleX, scaleY) * 0.9
+
+  // 应用变换：先平移到画布中心，再缩放，再平移选中区域到中心
+  ctx.save()
+  ctx.translate(zoomCanvasSize / 2, zoomCanvasSize / 2)
+  ctx.scale(zoomScale, zoomScale)
+  ctx.translate(
+    -(zoomDialogArea.value.minX + selectedWidth / 2),
+    -(zoomDialogArea.value.minY + selectedHeight / 2)
+  )
+
+  // 重新绘制整个 Wafer Map（使用原始的缩放参数）
+  const originalCanvas = waferCanvas.value
+  if (!originalCanvas) return
+
+  const canvasSize = Math.min(originalCanvas.width, originalCanvas.height)
+  const scale = (canvasSize * 0.85) / props.config.diameter
+  const centerX = canvasSize / 2
+  const centerY = canvasSize / 2
+
+  // 绘制晶圆圆圈
+  const { waferOuterRadius, waferInnerRadius } = drawWaferCircles(ctx, centerX, centerY, scale)
+
+  // 绘制 Notch
+  drawNotch(ctx, centerX, centerY, waferOuterRadius)
+
+  // 绘制 Dies
+  const { validDiePositions } = drawDies(ctx, centerX, centerY, scale, waferInnerRadius)
+
+  // 绘制 Reticle 边框
+  if (props.config.showReticleBorder) {
+    const dieWidthWithScribe = props.config.dieWidth + props.config.scribeLineX
+    const dieHeightWithScribe = props.config.dieHeight + props.config.scribeLineY
+    drawReticleBorders(ctx, scale, dieWidthWithScribe, dieHeightWithScribe, validDiePositions)
+  }
+
+  ctx.restore()
+}
 </script>
 
 <style scoped lang="scss">
@@ -430,17 +662,32 @@ watch(
 }
 
 .canvas-container {
-  width: 100%;
-  height: 100%;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 20px;
+  position: relative;
 
   canvas {
     border: 1px solid #dcdfe6;
     border-radius: 4px;
-    background: #fff;
-    cursor: crosshair;
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  }
+}
+
+.zoom-dialog-content {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px 0;
+
+  .zoom-canvas {
+    border: 1px solid #dcdfe6;
+    border-radius: 4px;
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+    max-width: 100%;
+    max-height: 70vh;
   }
 }
 </style>
