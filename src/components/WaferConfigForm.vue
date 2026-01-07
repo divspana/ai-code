@@ -65,6 +65,13 @@
         />
       </el-form-item>
 
+      <el-form-item label="Show Defects">
+        <el-switch
+          :model-value="modelValue.showDefects"
+          @update:model-value="val => updateField('showDefects', val)"
+        />
+      </el-form-item>
+
       <el-form-item label="Scribe Line X">
         <el-input-number
           :model-value="modelValue.scribeLineX"
@@ -214,6 +221,17 @@
 </template>
 
 <script setup lang="ts">
+// 缺陷数据接口
+export interface Defect {
+  dieRow: number // Die 的行索引
+  dieCol: number // Die 的列索引
+  x: number // 缺陷在 Die 内的 X 坐标（相对位置，0-1）
+  y: number // 缺陷在 Die 内的 Y 坐标（相对位置，0-1）
+  type: string // 缺陷类型
+  size?: number // 缺陷大小（可选）
+  severity?: string // 严重程度（可选）
+}
+
 export interface WaferConfig {
   diameter: number
   dieWidth: number
@@ -234,6 +252,11 @@ export interface WaferConfig {
   centerY: number
   bevel: number
   showReticleBorder: boolean
+  // 缺陷相关配置
+  showDefects?: boolean // 是否显示缺陷
+  defectData?: Defect[] // 缺陷数据
+  defectTypeColors?: Record<string, string> // 缺陷类型颜色映射
+  defectSize?: number // 缺陷点默认大小
 }
 
 interface Props {

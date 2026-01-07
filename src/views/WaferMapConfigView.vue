@@ -44,8 +44,39 @@ const config = ref<WaferConfig>({
   centerX: 0,
   centerY: 0,
   bevel: 3,
-  showReticleBorder: false
+  showReticleBorder: false,
+  // 缺陷相关配置
+  showDefects: false,
+  defectSize: 2,
+  defectData: generateTestDefects(1000) // 生成1000个测试缺陷
 })
+
+// 生成测试缺陷数据
+function generateTestDefects(count: number) {
+  const defects = []
+  const defectTypes = ['scratch', 'particle', 'void', 'crack', 'contamination']
+
+  for (let i = 0; i < count; i++) {
+    // 随机生成 Die 位置（在 -6 到 6 的范围内）
+    const dieRow = Math.floor(Math.random() * 13) - 6
+    const dieCol = Math.floor(Math.random() * 13) - 6
+
+    // 随机生成 Die 内的位置（0-1）
+    const x = Math.random()
+    const y = Math.random()
+
+    // 随机选择缺陷类型
+    const type = defectTypes[Math.floor(Math.random() * defectTypes.length)]
+
+    // 随机生成缺陷大小（1.5-3）
+    const size = 1.5 + Math.random() * 1.5
+
+    defects.push({ dieRow, dieCol, x, y, type, size })
+  }
+
+  console.log(`Generated ${count} test defects`)
+  return defects
+}
 </script>
 
 <style scoped lang="scss">

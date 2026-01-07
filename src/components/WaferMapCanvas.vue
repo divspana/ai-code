@@ -73,7 +73,8 @@ const generateWaferMap = () => {
   canvas.width = canvasSize
   canvas.height = canvasSize
 
-  // 清空画布
+  // 清空画布并重置变换矩阵
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 
   // 计算缩放比例和中心点
@@ -104,6 +105,11 @@ const generateWaferMap = () => {
     const dieWidthWithScribe = props.config.dieWidth + props.config.scribeLineX
     const dieHeightWithScribe = props.config.dieHeight + props.config.scribeLineY
     drawReticleBorders(ctx, scale, dieWidthWithScribe, dieHeightWithScribe, validDiePositions)
+  }
+
+  // 绘制缺陷（如果开关打开且有缺陷数据）
+  if (props.config.showDefects && props.config.defectData && props.config.defectData.length > 0) {
+    drawDefects(ctx, scale, centerX, centerY, validDiePositions)
   }
 }
 
@@ -271,6 +277,104 @@ const drawDies = (
     totalCount: validDiePositions.length,
     validCount: validDiePositions.length
   }
+}
+
+// 绘制缺陷（优化版：支持大数据量）
+const drawDefects = (
+  ctx: CanvasRenderingContext2D,
+  scale: number,
+  centerX: number,
+  centerY: number,
+  validDiePositions: Array<{ row: number; col: number; canvasX: number; canvasY: number }>
+) => {
+  if (!props.config.defectData || props.config.defectData.length === 0) return
+
+  const startTime = performance.now()
+
+  // 创建 Die 位置映射，用于快速查找
+  const diePositionMap = new Map<string, { canvasX: number; canvasY: number }>()
+  validDiePositions.forEach(die => {
+    diePositionMap.set(`${die.row},${die.col}`, { canvasX: die.canvasX, canvasY: die.canvasY })
+  })
+
+  // 默认缺陷大小和颜色映射
+  const defaultDefectSize = props.config.defectSize || 2
+  const defaultColors: Record<string, string> = {
+    scratch: '#FF4444',
+    particle: '#FFA500',
+    void: '#9370DB',
+    crack: '#DC143C',
+    contamination: '#FFD700',
+    default: '#FF0000'
+  }
+  const defectColors = props.config.defectTypeColors || defaultColors
+
+  // 获取画布尺寸用于视口裁剪
+  const canvas = ctx.canvas
+  const viewportMinX = 0
+  const viewportMinY = 0
+  const viewportMaxX = canvas.width
+  const viewportMaxY = canvas.height
+
+  let drawnCount = 0
+  let skippedCount = 0
+
+  // 批量绘制优化：按颜色分组绘制
+  const defectsByColor = new Map<string, Array<{ x: number; y: number; size: number }>>()
+
+  // 遍历所有缺陷，进行视口裁剪和分组
+  props.config.defectData.forEach(defect => {
+    const dieKey = `${defect.dieRow},${defect.dieCol}`
+    const diePos = diePositionMap.get(dieKey)
+
+    if (!diePos) {
+      skippedCount++
+      return
+    }
+
+    // 计算缺陷在画布上的位置
+    const defectX = diePos.canvasX + defect.x * props.config.dieWidth * scale
+    const defectY = diePos.canvasY + defect.y * props.config.dieHeight * scale
+
+    // 视口裁剪：只绘制可见区域内的缺陷
+    const size = (defect.size || defaultDefectSize) * scale
+    if (
+      defectX + size < viewportMinX ||
+      defectX - size > viewportMaxX ||
+      defectY + size < viewportMinY ||
+      defectY - size > viewportMaxY
+    ) {
+      skippedCount++
+      return
+    }
+
+    // 按颜色分组
+    const color = defectColors[defect.type] || defectColors.default || '#FF0000'
+    if (!defectsByColor.has(color)) {
+      defectsByColor.set(color, [])
+    }
+    defectsByColor.get(color)!.push({ x: defectX, y: defectY, size })
+    drawnCount++
+  })
+
+  // 批量绘制：相同颜色的缺陷一起绘制，减少状态切换
+  defectsByColor.forEach((defects, color) => {
+    ctx.fillStyle = color
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'
+    ctx.lineWidth = 0.5
+
+    defects.forEach(({ x, y, size }) => {
+      ctx.beginPath()
+      ctx.arc(x, y, size, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.stroke()
+    })
+  })
+
+  const endTime = performance.now()
+  console.log(
+    `Defects: drawn=${drawnCount}, skipped=${skippedCount}, time=${(endTime - startTime).toFixed(2)}ms`
+  )
 }
 
 const drawReticleBorders = (
@@ -569,7 +673,8 @@ const drawZoomView = () => {
   canvas.width = zoomCanvasSize
   canvas.height = zoomCanvasSize
 
-  // 清空画布
+  // 清空画布并重置变换矩阵
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 
   // 计算选中区域的尺寸（原始画布坐标）
@@ -613,6 +718,11 @@ const drawZoomView = () => {
     const dieWidthWithScribe = props.config.dieWidth + props.config.scribeLineX
     const dieHeightWithScribe = props.config.dieHeight + props.config.scribeLineY
     drawReticleBorders(ctx, scale, dieWidthWithScribe, dieHeightWithScribe, validDiePositions)
+  }
+
+  // 绘制缺陷
+  if (props.config.showDefects && props.config.defectData && props.config.defectData.length > 0) {
+    drawDefects(ctx, scale, centerX, centerY, validDiePositions)
   }
 
   ctx.restore()
