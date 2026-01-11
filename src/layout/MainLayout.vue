@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import type { Component } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
   Document,
@@ -13,6 +14,7 @@ import {
   Monitor,
   Operation,
   Setting,
+  List,
   Expand,
   Fold
 } from '@element-plus/icons-vue'
@@ -30,69 +32,33 @@ onMounted(() => {
 
 const isCollapse = ref(false)
 
-// 菜单项配置
-const menuItems = [
-  {
-    path: '/todo',
-    title: '待办事项',
-    icon: Document
-  },
-  {
-    path: '/form-engine',
-    title: '表单引擎',
-    icon: Edit
-  },
-  {
-    path: '/form-builder',
-    title: '表单设计器',
-    icon: Tools
-  },
-  {
-    path: '/wafer-map',
-    title: 'Wafer Map',
-    icon: Grid
-  },
-  {
-    path: '/wafer-map-pro',
-    title: 'Wafer Map Pro',
-    icon: DataAnalysis
-  },
-  {
-    path: '/charts',
-    title: 'ECharts 图表',
-    icon: TrendCharts
-  },
-  {
-    path: '/file-upload-uppy',
-    title: '文件上传 (Uppy)',
-    icon: Upload
-  },
-  {
-    path: '/folder-upload',
-    title: '文件夹上传',
-    icon: FolderOpened
-  },
-  {
-    path: '/chart-designer',
-    title: '图表设计器',
-    icon: DataAnalysis
-  },
-  {
-    path: '/playground',
-    title: '组件 Playground',
-    icon: Monitor
-  },
-  {
-    path: '/data-comparison',
-    title: '数据对比',
-    icon: Operation
-  },
-  {
-    path: '/wafer-map-config',
-    title: 'Wafer Map 配置',
-    icon: Setting
-  }
-]
+// 图标映射
+const iconMap: Record<string, Component> = {
+  Document,
+  Edit,
+  Tools,
+  Grid,
+  DataAnalysis,
+  TrendCharts,
+  Upload,
+  FolderOpened,
+  Monitor,
+  Operation,
+  Setting,
+  List
+}
+
+// 从路由配置自动生成菜单项
+const menuItems = computed(() => {
+  return router
+    .getRoutes()
+    .filter(route => route.meta?.title && route.path !== '/')
+    .map(route => ({
+      path: route.path,
+      title: route.meta.title as string,
+      icon: iconMap[route.meta.icon as string] || Document
+    }))
+})
 
 // 当前激活的菜单
 const activeMenu = computed(() => route.path)

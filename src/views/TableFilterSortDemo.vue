@@ -152,7 +152,102 @@
       <el-card>
         <template #header>
           <div class="card-header">
-            <span>✅ 方案3：手动排序控制（灵活性高）</span>
+            <span>✅ 方案4：自定义 Filter 图标和内容（不使用插槽）</span>
+          </div>
+        </template>
+        <el-table :data="tableData" style="width: 100%">
+          <el-table-column
+            prop="name"
+            label="姓名"
+            sortable
+            :filters="nameFilters"
+            :filter-method="filterName"
+            :filtered-value="filteredName"
+            width="200"
+          >
+            <template #header>
+              <div class="filter-header">
+                <span>姓名</span>
+                <el-popover
+                  placement="bottom"
+                  :width="200"
+                  trigger="click"
+                  @show="handleFilterShow"
+                >
+                  <template #reference>
+                    <el-icon class="custom-filter-icon" @click.stop>
+                      <Filter />
+                    </el-icon>
+                  </template>
+                  <div class="custom-filter-panel">
+                    <el-checkbox-group v-model="filteredName" @change="handleFilterChange">
+                      <el-checkbox
+                        v-for="item in nameFilters"
+                        :key="item.value"
+                        :label="item.value"
+                      >
+                        {{ item.text }}
+                      </el-checkbox>
+                    </el-checkbox-group>
+                    <div class="filter-actions">
+                      <el-button size="small" @click="handleFilterReset('name')">重置</el-button>
+                      <el-button size="small" type="primary" @click="handleFilterConfirm">
+                        确定
+                      </el-button>
+                    </div>
+                  </div>
+                </el-popover>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="department"
+            label="部门"
+            sortable
+            :filters="deptFilters"
+            :filter-method="filterDept"
+            :filtered-value="filteredDept"
+            width="200"
+          >
+            <template #header>
+              <div class="filter-header">
+                <span>部门</span>
+                <el-popover placement="bottom" :width="200" trigger="click">
+                  <template #reference>
+                    <el-icon class="custom-filter-icon" @click.stop>
+                      <Filter />
+                    </el-icon>
+                  </template>
+                  <div class="custom-filter-panel">
+                    <el-checkbox-group v-model="filteredDept">
+                      <el-checkbox
+                        v-for="item in deptFilters"
+                        :key="item.value"
+                        :label="item.value"
+                      >
+                        {{ item.text }}
+                      </el-checkbox>
+                    </el-checkbox-group>
+                    <div class="filter-actions">
+                      <el-button size="small" @click="handleFilterReset('dept')">重置</el-button>
+                      <el-button size="small" type="primary">确定</el-button>
+                    </div>
+                  </div>
+                </el-popover>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="age" label="年龄" sortable width="120" />
+          <el-table-column prop="email" label="邮箱" />
+        </el-table>
+      </el-card>
+    </div>
+
+    <div class="demo-section">
+      <el-card>
+        <template #header>
+          <div class="card-header">
+            <span>✅ 方案5：手动排序控制（灵活性高）</span>
           </div>
         </template>
         <el-table :data="sortedData3" style="width: 100%">
@@ -222,7 +317,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
-import { CaretTop, CaretBottom, Sort } from '@element-plus/icons-vue'
+import { CaretTop, CaretBottom, Sort, Filter } from '@element-plus/icons-vue'
 
 interface TableRow {
   id: number
@@ -333,6 +428,30 @@ const toggleSort3 = (prop: string) => {
     sortState3[prop] = null
   } else {
     sortState3[prop] = 'asc'
+  }
+}
+
+// 方案4：自定义 Filter 图标和内容
+const filteredName = ref<string[]>([])
+const filteredDept = ref<string[]>([])
+
+const handleFilterShow = () => {
+  console.log('Filter panel opened')
+}
+
+const handleFilterChange = () => {
+  console.log('Filter changed:', filteredName.value)
+}
+
+const handleFilterConfirm = () => {
+  console.log('Filter confirmed')
+}
+
+const handleFilterReset = (type: string) => {
+  if (type === 'name') {
+    filteredName.value = []
+  } else if (type === 'dept') {
+    filteredDept.value = []
   }
 }
 </script>
@@ -452,6 +571,45 @@ const toggleSort3 = (prop: string) => {
         color: var(--el-color-primary);
       }
     }
+  }
+}
+
+// 方案4：自定义 Filter 样式
+.filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+
+  .custom-filter-icon {
+    cursor: pointer;
+    margin-left: 8px;
+    color: #909399;
+    transition: all 0.3s;
+
+    &:hover {
+      color: var(--el-color-primary);
+      transform: scale(1.1);
+    }
+  }
+}
+
+.custom-filter-panel {
+  padding: 12px;
+
+  :deep(.el-checkbox-group) {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .filter-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #ebeef5;
   }
 }
 </style>
