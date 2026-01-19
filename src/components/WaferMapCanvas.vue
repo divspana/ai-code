@@ -17,8 +17,41 @@
         @mousemove="handleMouseMove"
         @mouseup="handleMouseUp"
         @mouseleave="handleMouseLeave"
+        @click="handleCanvasClick"
         style="cursor: crosshair"
       ></canvas>
+
+      <!-- Tooltip -->
+      <div
+        v-if="tooltip.visible"
+        class="die-tooltip"
+        :style="{
+          left: tooltip.x + 'px',
+          top: tooltip.y + 'px'
+        }"
+      >
+        <div class="tooltip-title">Die 信息</div>
+        <div class="tooltip-item">
+          <span class="tooltip-label">位置:</span>
+          <span class="tooltip-value"
+            >Row {{ tooltip.dieInfo?.row }}, Col {{ tooltip.dieInfo?.col }}</span
+          >
+        </div>
+        <div class="tooltip-item">
+          <span class="tooltip-label">坐标:</span>
+          <span class="tooltip-value"
+            >X: {{ tooltip.dieInfo?.x?.toFixed(2) }}mm, Y:
+            {{ tooltip.dieInfo?.y?.toFixed(2) }}mm</span
+          >
+        </div>
+        <div
+          v-if="tooltip.dieInfo?.defects && tooltip.dieInfo.defects.length > 0"
+          class="tooltip-item"
+        >
+          <span class="tooltip-label">缺陷数:</span>
+          <span class="tooltip-value">{{ tooltip.dieInfo.defects.length }}</span>
+        </div>
+      </div>
     </div>
 
     <!-- 放大视图对话框 -->
@@ -60,6 +93,51 @@ const selectionEnd = ref({ x: 0, y: 0 })
 const showZoomDialog = ref(false)
 const zoomDialogArea = ref({ minX: 0, minY: 0, maxX: 0, maxY: 0 })
 
+// Tooltip 相关状态
+interface DieInfo {
+  row: number
+  col: number
+  x: number
+  y: number
+  defects?: Array<{
+    dieRow: number
+    dieCol: number
+    x: number
+    y: number
+    type: string
+    size?: number
+    severity?: string
+  }>
+}
+
+const tooltip = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  dieInfo: null as DieInfo | null
+})
+
+// 存储所有有效 Die 的位置信息，用于点击和悬停检测
+const validDiePositionsCache = ref<
+  Array<{
+    row: number
+    col: number
+    canvasX: number
+    canvasY: number
+    physicalX: number
+    physicalY: number
+  }>
+>([])
+
+// 当前绘制参数缓存
+const drawParamsCache = ref({
+  scale: 0,
+  centerX: 0,
+  centerY: 0,
+  dieWidth: 0,
+  dieHeight: 0
+})
+
 const generateWaferMap = () => {
   const canvas = waferCanvas.value
   if (!canvas) return
@@ -99,6 +177,16 @@ const generateWaferMap = () => {
 
   totalDies.value = totalCount
   validDies.value = validCount
+
+  // 缓存绘制参数和 Die 位置信息
+  drawParamsCache.value = {
+    scale,
+    centerX,
+    centerY,
+    dieWidth: props.config.dieWidth * scale,
+    dieHeight: props.config.dieHeight * scale
+  }
+  validDiePositionsCache.value = validDiePositions
 
   // 绘制 Reticle 边框（如果开关打开）
   if (props.config.showReticleBorder) {
@@ -272,7 +360,9 @@ const drawDies = (
       row: d.row,
       col: d.col,
       canvasX: d.canvasX,
-      canvasY: d.canvasY
+      canvasY: d.canvasY,
+      physicalX: d.centerX_mm,
+      physicalY: d.centerY_mm
     })),
     totalCount: validDiePositions.length,
     validCount: validDiePositions.length
@@ -508,10 +598,8 @@ const handleMouseDown = (event: MouseEvent) => {
   selectionEnd.value = { x, y }
 }
 
-// 鼠标移动 - 更新框选区域
+// 鼠标移动 - 更新框选区域或显示 tooltip
 const handleMouseMove = (event: MouseEvent) => {
-  if (!isSelecting.value) return
-
   const canvas = waferCanvas.value
   if (!canvas) return
 
@@ -519,11 +607,28 @@ const handleMouseMove = (event: MouseEvent) => {
   const x = event.clientX - rect.left
   const y = event.clientY - rect.top
 
-  selectionEnd.value = { x, y }
-
-  // 重绘画布并绘制框选矩形
-  generateWaferMap()
-  drawSelectionRect()
+  if (isSelecting.value) {
+    // 框选模式：更新选择区域
+    selectionEnd.value = { x, y }
+    // 重绘画布并绘制框选矩形
+    generateWaferMap()
+    drawSelectionRect()
+    // 隐藏 tooltip
+    tooltip.value.visible = false
+  } else {
+    // 非框选模式：显示 tooltip
+    const dieInfo = getDieAtPosition(x, y)
+    if (dieInfo) {
+      tooltip.value = {
+        visible: true,
+        x: event.clientX - rect.left + 15,
+        y: event.clientY - rect.top + 15,
+        dieInfo
+      }
+    } else {
+      tooltip.value.visible = false
+    }
+  }
 }
 
 // 鼠标抬起 - 完成框选并弹出对话框
@@ -604,11 +709,64 @@ const expandSelectionToCompleteDies = (minX: number, minY: number, maxX: number,
   }
 }
 
-// 鼠标离开 - 取消框选
+// 鼠标离开 - 取消框选并隐藏 tooltip
 const handleMouseLeave = () => {
   if (isSelecting.value) {
     isSelecting.value = false
     generateWaferMap()
+  }
+  tooltip.value.visible = false
+}
+
+// 根据画布坐标获取 Die 信息
+const getDieAtPosition = (canvasX: number, canvasY: number): DieInfo | null => {
+  const { scale, dieWidth, dieHeight } = drawParamsCache.value
+  if (scale === 0) return null
+
+  // 遍历所有有效 Die，找到鼠标位置对应的 Die
+  for (const die of validDiePositionsCache.value) {
+    const dieLeft = die.canvasX - dieWidth / 2
+    const dieRight = die.canvasX + dieWidth / 2
+    const dieTop = die.canvasY - dieHeight / 2
+    const dieBottom = die.canvasY + dieHeight / 2
+
+    if (canvasX >= dieLeft && canvasX <= dieRight && canvasY >= dieTop && canvasY <= dieBottom) {
+      // 找到对应的缺陷数据
+      const defects =
+        props.config.defectData?.filter(
+          defect => defect.dieRow === die.row && defect.dieCol === die.col
+        ) || []
+
+      return {
+        row: die.row,
+        col: die.col,
+        x: die.physicalX,
+        y: die.physicalY,
+        defects
+      }
+    }
+  }
+
+  return null
+}
+
+// 画布点击事件 - 显示 Die 详细信息
+const handleCanvasClick = (event: MouseEvent) => {
+  // 如果刚完成框选，不触发点击事件
+  if (isSelecting.value) return
+
+  const canvas = waferCanvas.value
+  if (!canvas) return
+
+  const rect = canvas.getBoundingClientRect()
+  const x = event.clientX - rect.left
+  const y = event.clientY - rect.top
+
+  const dieInfo = getDieAtPosition(x, y)
+  if (dieInfo) {
+    console.log('Clicked Die:', dieInfo)
+    // 可以在这里触发自定义事件或显示详细信息对话框
+    // emit('die-click', dieInfo)
   }
 }
 
@@ -798,6 +956,44 @@ const drawZoomView = () => {
     box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
     max-width: 100%;
     max-height: 70vh;
+  }
+}
+
+.die-tooltip {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  pointer-events: none;
+  z-index: 1000;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  min-width: 200px;
+
+  .tooltip-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .tooltip-item {
+    display: flex;
+    justify-content: space-between;
+    margin: 6px 0;
+    line-height: 1.5;
+
+    .tooltip-label {
+      color: rgba(255, 255, 255, 0.7);
+      margin-right: 12px;
+    }
+
+    .tooltip-value {
+      color: #fff;
+      font-weight: 500;
+    }
   }
 }
 </style>
