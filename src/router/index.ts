@@ -113,15 +113,6 @@ const routes: RouteRecordRaw[] = [
       title: 'Wafer Map 配置',
       icon: 'Setting'
     }
-  },
-  {
-    path: '/table-filter-sort',
-    name: 'TableFilterSort',
-    component: () => import('../views/TableFilterSortDemo.vue'),
-    meta: {
-      title: 'Table Filter & Sort',
-      icon: 'List'
-    }
   }
 ]
 
