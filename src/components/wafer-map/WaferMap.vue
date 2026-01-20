@@ -74,14 +74,50 @@
     <div v-if="showDebugInfo" class="debug-panel">
       <div>Zoom: {{ zoom.toFixed(2) }}x</div>
       <div>LOD: {{ stats.lodLevel }}</div>
+      <div>Selected Defects: {{ selectedDefects.length }}</div>
       <div>{{ performanceSuggestion }}</div>
+    </div>
+
+    <!-- 选中坏点的信息框和指引线 -->
+    <svg v-if="selectedDefects.length > 0" class="defect-lines">
+      <line
+        v-for="(defect, index) in selectedDefects"
+        :key="`line-${index}`"
+        :x1="defect.x"
+        :y1="defect.y"
+        :x2="defect.labelX"
+        :y2="defect.labelY"
+        stroke="#409eff"
+        stroke-width="1.5"
+        stroke-dasharray="3,3"
+      />
+    </svg>
+
+    <div
+      v-for="(defect, index) in selectedDefects"
+      :key="index"
+      class="defect-label"
+      :class="{ dragging: draggingIndex === index }"
+      :style="{
+        left: defect.labelX + 'px',
+        top: defect.labelY + 'px'
+      }"
+      @mousedown="onLabelMouseDown($event, index)"
+    >
+      <div class="label-content">
+        <div class="label-title">{{ defect.type }}</div>
+        <div class="label-info">Die: ({{ defect.dieRow }}, {{ defect.dieCol }})</div>
+        <div class="label-info">
+          位置: ({{ defect.relX.toFixed(2) }}, {{ defect.relY.toFixed(2) }})
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
-import type { WaferMapProps, WaferMapEmits } from './types'
+import type { WaferMapProps, WaferMapEmits, DieInfo } from './types'
 import { DEFAULT_RENDER_CONFIG, CANVAS_CONFIG } from './constants'
 import { useCanvasLayers } from './hooks/useCanvasLayers'
 import { useWaferRenderer } from './hooks/useWaferRenderer'
@@ -122,7 +158,7 @@ const { totalDies, validDies, validDiePositions, drawParams, renderBackground } 
   props.waferConfig
 )
 
-const { defectStats, renderDefects } = useDefectLayer(props.defects)
+const { defectStats, renderDefects } = useDefectLayer()
 
 const {
   zoom,
@@ -135,6 +171,28 @@ const {
   handleWheel,
   drawSelectionBox
 } = useInteraction()
+
+// 选中的坏点状态
+const selectedDefects = ref<
+  Array<{
+    x: number
+    y: number
+    type: string
+    dieRow: number
+    dieCol: number
+    relX: number
+    relY: number
+    labelX: number // 信息框 X 坐标
+    labelY: number // 信息框 Y 坐标
+  }>
+>([])
+
+// 是否只显示选中的坏点
+const showOnlySelected = ref(false)
+
+// 拖拽状态
+const draggingIndex = ref<number | null>(null)
+const dragOffset = ref({ x: 0, y: 0 })
 
 const {
   stats,
@@ -206,17 +264,29 @@ const renderDefectsLayer = async (canvasSize: number) => {
   const defectsLayer = getLayer('defects')
   if (!defectsLayer) return
 
-  // 计算视口
-  const viewport = calculateViewport(canvasSize, canvasSize, zoom.value)
+  // 计算视口（初始状态下覆盖整个画布）
+  const viewport = calculateViewport(
+    canvasSize,
+    canvasSize,
+    zoom.value,
+    canvasSize / 2,
+    canvasSize / 2
+  )
 
   // 计算 LOD 级别
   const lodLevel = calculateLODLevel(zoom.value, props.defects.length)
   updateLODLevel(lodLevel)
 
-  // 渲染缺陷
+  // 渲染缺陷（如果启用了只显示选中模式，则只渲染选中的坏点）
+  const defectsToRender = showOnlySelected.value
+    ? props.defects.filter(d =>
+        selectedDefects.value.some(sd => sd.dieRow === d.dieRow && sd.dieCol === d.dieCol)
+      )
+    : props.defects
+
   renderDefects(
     defectsLayer,
-    props.defects,
+    defectsToRender,
     validDiePositions.value,
     viewport,
     drawParams.value.scale,
@@ -282,9 +352,67 @@ const onMouseUp = (event: MouseEvent) => {
 
   if (result?.type === 'selection') {
     emit('selection', result.dies)
+
+    // 获取选中区域内的坏点
+    getDefectsInSelection(result.dies)
+
+    // 启用只显示选中坏点模式
+    showOnlySelected.value = true
+
+    // 重新渲染缺陷层
+    const canvasSize = Math.min(
+      containerRef.value?.clientWidth || CANVAS_CONFIG.DEFAULT_SIZE,
+      CANVAS_CONFIG.MAX_SIZE
+    )
+    renderDefectsLayer(canvasSize)
   }
 
   renderInteractionLayer()
+}
+
+/**
+ * 获取选中区域内的坏点
+ */
+const getDefectsInSelection = (selectedDies: DieInfo[]) => {
+  const selected: typeof selectedDefects.value = []
+
+  // 创建选中 Die 的 Set 用于快速查找
+  const selectedDieSet = new Set(selectedDies.map(die => `${die.row},${die.col}`))
+
+  // 从所有缺陷中筛选出在选中 Die 上的缺陷
+  props.defects.forEach(defect => {
+    const dieKey = `${defect.dieRow},${defect.dieCol}`
+
+    if (selectedDieSet.has(dieKey)) {
+      // 找到对应的 Die 位置
+      const diePos = validDiePositions.value.find(
+        d => d.row === defect.dieRow && d.col === defect.dieCol
+      )
+
+      if (diePos) {
+        const x = diePos.canvasX + defect.x * drawParams.value.scale * props.waferConfig.dieWidth
+        const y = diePos.canvasY + defect.y * drawParams.value.scale * props.waferConfig.dieHeight
+
+        // 初始化信息框位置（默认在坏点右侧 60px）
+        selected.push({
+          x,
+          y,
+          type: defect.type,
+          dieRow: defect.dieRow,
+          dieCol: defect.dieCol,
+          relX: defect.x,
+          relY: defect.y,
+          labelX: x + 60,
+          labelY: y
+        })
+      }
+    }
+  })
+
+  selectedDefects.value = selected
+  console.log(
+    `Selected ${selected.length} defects in ${selectedDies.length} dies from ${props.defects.length} total defects`
+  )
 }
 
 const onMouseLeave = () => {
@@ -324,6 +452,54 @@ const onWheel = (event: WheelEvent) => {
   }
 }
 
+// ==================== 信息框拖拽 ====================
+
+/**
+ * 信息框鼠标按下
+ */
+const onLabelMouseDown = (event: MouseEvent, index: number) => {
+  event.stopPropagation()
+  event.preventDefault()
+
+  draggingIndex.value = index
+  const defect = selectedDefects.value[index]
+
+  // 记录鼠标相对于信息框的偏移
+  dragOffset.value = {
+    x: event.clientX - defect.labelX,
+    y: event.clientY - defect.labelY
+  }
+
+  // 添加全局事件监听
+  document.addEventListener('mousemove', onLabelMouseMove)
+  document.addEventListener('mouseup', onLabelMouseUp)
+}
+
+/**
+ * 信息框拖拽移动
+ */
+const onLabelMouseMove = (event: MouseEvent) => {
+  if (draggingIndex.value === null) return
+
+  const defect = selectedDefects.value[draggingIndex.value]
+  if (!defect) return
+
+  // 计算新位置
+  defect.labelX = event.clientX - dragOffset.value.x
+  defect.labelY = event.clientY - dragOffset.value.y
+}
+
+/**
+ * 信息框拖拽结束
+ */
+const onLabelMouseUp = () => {
+  draggingIndex.value = null
+
+  // 移除全局事件监听
+  document.removeEventListener('mousemove', onLabelMouseMove)
+  document.removeEventListener('mouseup', onLabelMouseUp)
+}
+
 // ==================== 生命周期 ====================
 
 onMounted(() => {
@@ -353,10 +529,26 @@ watch(
   { deep: true }
 )
 
+/**
+ * 清除选择
+ */
+const clearSelection = () => {
+  selectedDefects.value = []
+  showOnlySelected.value = false
+
+  // 重新渲染缺陷层
+  const canvasSize = Math.min(
+    containerRef.value?.clientWidth || CANVAS_CONFIG.DEFAULT_SIZE,
+    CANVAS_CONFIG.MAX_SIZE
+  )
+  renderDefectsLayer(canvasSize)
+}
+
 // 暴露方法
 defineExpose({
   render,
   clearLayer,
+  clearSelection,
   getStats: () => stats.value
 })
 </script>
@@ -473,6 +665,69 @@ defineExpose({
 
   div {
     margin: 2px 0;
+  }
+}
+
+.defect-label {
+  position: absolute;
+  pointer-events: auto;
+  z-index: 500;
+  transform: translate(5px, -50%);
+  cursor: move;
+  user-select: none;
+  transition: transform 0.1s ease;
+
+  &:hover {
+    transform: translate(5px, -50%) scale(1.02);
+  }
+
+  &.dragging {
+    cursor: grabbing;
+    z-index: 1000;
+
+    .label-content {
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+      border-color: #66b1ff;
+    }
+  }
+
+  .label-content {
+    background: rgba(255, 255, 255, 0.95);
+    border: 2px solid #409eff;
+    border-radius: 6px;
+    padding: 8px 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    font-size: 12px;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+
+    .label-title {
+      font-weight: 600;
+      color: #409eff;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    .label-info {
+      color: #606266;
+      margin: 2px 0;
+      font-size: 11px;
+    }
+  }
+}
+
+.defect-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 499;
+  overflow: visible;
+
+  line {
+    filter: drop-shadow(0 0 2px rgba(64, 158, 255, 0.3));
   }
 }
 </style>

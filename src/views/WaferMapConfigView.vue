@@ -95,8 +95,8 @@ function generateTestDefects(count: number) {
     // 随机选择缺陷类型
     const type = defectTypes[Math.floor(Math.random() * defectTypes.length)]
 
-    // 随机生成缺陷大小（1.5-3）
-    const size = 1.5 + Math.random() * 1.5
+    // 固定缺陷大小为 0.5（1 像素点）
+    const size = 0.5
 
     defects.push({
       dieRow: randomDie.row,

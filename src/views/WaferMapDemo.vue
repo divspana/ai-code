@@ -115,7 +115,6 @@
             :render-config="renderConfig"
             :show-stats="showStats"
             :show-debug-info="showDebugInfo"
-            height="700px"
             @die-click="handleDieClick"
             @selection="handleSelection"
             @zoom="handleZoom"
@@ -125,7 +124,7 @@
         </el-card>
 
         <!-- 选中的 Die 信息 -->
-        <el-card v-if="clickedDie" class="info-card" style="margin-top: 20px">
+        <el-card v-if="clickedDie" class="info-card">
           <template #header>
             <div class="card-header">
               <span>Die 详细信息</span>
@@ -229,10 +228,67 @@ const showDebugInfo = ref(false)
 const clickedDie = ref<DieInfo | null>(null)
 const selectedDies = ref<DieInfo[]>([])
 
+// Web Worker 实例
+let dataWorker: Worker | null = null
+
 /**
- * 生成测试缺陷数据
+ * 生成测试缺陷数据（使用 Web Worker）
  */
 const generateDefects = () => {
+  // 如果数据量小于 10 万，直接在主线程生成
+  if (defectCount.value < 100000) {
+    generateDefectsSync()
+    return
+  }
+
+  // 大数据量使用 Web Worker
+  ElMessage.info('正在生成数据，请稍候...')
+
+  // 创建 Worker
+  if (!dataWorker) {
+    dataWorker = new Worker(new URL('../workers/dataGenerator.ts', import.meta.url), {
+      type: 'module'
+    })
+  }
+
+  // 监听 Worker 消息
+  dataWorker.onmessage = e => {
+    if (e.data.type === 'progress') {
+      console.log(`生成进度: ${e.data.percentage}% (${e.data.current}/${e.data.total})`)
+    } else if (e.data.type === 'complete') {
+      defects.value = e.data.defects
+      ElMessage.success(
+        `生成 ${defectCount.value} 个缺陷，分布在 ${e.data.possibleDiesCount} 个 Die 上，耗时 ${e.data.generateTime.toFixed(2)}ms`
+      )
+    }
+  }
+
+  dataWorker.onerror = error => {
+    console.error('Worker error:', error)
+    ElMessage.error('数据生成失败，请重试')
+  }
+
+  // 发送生成请求
+  dataWorker.postMessage({
+    type: 'generate',
+    count: defectCount.value,
+    waferConfig: {
+      diameter: waferConfig.diameter,
+      dieWidth: waferConfig.dieWidth,
+      dieHeight: waferConfig.dieHeight,
+      scribeLineX: waferConfig.scribeLineX,
+      scribeLineY: waferConfig.scribeLineY,
+      dieOffsetX: waferConfig.dieOffsetX,
+      dieOffsetY: waferConfig.dieOffsetY,
+      edgeExclusion: waferConfig.edgeExclusion
+    }
+  })
+}
+
+/**
+ * 同步生成数据（小数据量）
+ */
+const generateDefectsSync = () => {
   const newDefects: Defect[] = []
   const defectTypes = ['scratch', 'particle', 'void', 'crack', 'contamination']
 
@@ -274,7 +330,7 @@ const generateDefects = () => {
       x: Math.random(),
       y: Math.random(),
       type: defectTypes[Math.floor(Math.random() * defectTypes.length)],
-      size: 1.5 + Math.random() * 1.5
+      size: 0.5
     })
   }
 
@@ -331,6 +387,11 @@ const handleError = (error: Error) => {
 const clearSelection = () => {
   selectedDies.value = []
   clickedDie.value = null
+
+  // 调用 WaferMap 组件的清除选择方法
+  if (waferMapRef.value) {
+    waferMapRef.value.clearSelection()
+  }
 }
 
 // 初始化：生成默认缺陷数据
@@ -341,15 +402,44 @@ generateDefects()
 .wafer-map-demo {
   padding: 20px;
   background: #f5f7fa;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+
+  :deep(.el-row) {
+    flex: 1;
+    overflow: hidden;
+    margin: 0 !important;
+  }
+
+  :deep(.el-col) {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+
+    &:first-child {
+      padding-left: 0 !important;
+    }
+
+    &:last-child {
+      padding-right: 0 !important;
+    }
+  }
 }
 
 .config-card {
-  height: calc(100vh - 40px);
-  overflow-y: auto;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 
   :deep(.el-card__body) {
     padding: 15px;
+    flex: 1;
+    overflow-y: auto;
   }
 
   .el-form-item {
@@ -366,6 +456,16 @@ generateDefects()
 }
 
 .map-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+
+  :deep(.el-card__body) {
+    flex: 1;
+    overflow: hidden;
+    padding: 0;
+  }
+
   .card-header {
     display: flex;
     justify-content: space-between;
@@ -380,6 +480,15 @@ generateDefects()
 }
 
 .info-card {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 500px;
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+
   .card-header {
     display: flex;
     justify-content: space-between;

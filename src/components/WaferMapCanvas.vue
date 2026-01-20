@@ -156,7 +156,7 @@ const generateWaferMap = () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 
   // 计算缩放比例和中心点
-  const scale = (canvasSize * 0.85) / props.config.diameter
+  const scale = (canvasSize * 0.75) / props.config.diameter
   const centerX = canvasSize / 2
   const centerY = canvasSize / 2
 
@@ -674,7 +674,7 @@ const expandSelectionToCompleteDies = (minX: number, minY: number, maxX: number,
 
   // 计算当前的缩放参数
   const canvasSize = Math.min(canvas.width, canvas.height)
-  const scale = (canvasSize * 0.85) / props.config.diameter
+  const scale = (canvasSize * 0.75) / props.config.diameter
   const centerX = canvasSize / 2
   const centerY = canvasSize / 2
 
@@ -858,7 +858,7 @@ const drawZoomView = () => {
   if (!originalCanvas) return
 
   const canvasSize = Math.min(originalCanvas.width, originalCanvas.height)
-  const scale = (canvasSize * 0.85) / props.config.diameter
+  const scale = (canvasSize * 0.75) / props.config.diameter
   const centerX = canvasSize / 2
   const centerY = canvasSize / 2
 

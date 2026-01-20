@@ -9,7 +9,7 @@ import type { RenderConfig } from './types'
 export const DEFAULT_RENDER_CONFIG: RenderConfig = {
   // 缺陷渲染
   showDefects: true,
-  defectSize: 2,
+  defectSize: 0.5,
   defectColors: {
     scratch: '#FF4444',
     particle: '#FFA500',
@@ -41,21 +41,17 @@ export const DEFAULT_RENDER_CONFIG: RenderConfig = {
 }
 
 // ==================== 性能阈值 ====================
-
+/**
+ * 性能阈值配置
+ */
 export const PERFORMANCE_THRESHOLDS = {
-  // 数据量阈值
-  SMALL_DATASET: 10000,
-  MEDIUM_DATASET: 50000,
-  LARGE_DATASET: 200000,
-  HUGE_DATASET: 1000000,
-
-  // FPS 阈值
-  TARGET_FPS: 60,
-  MIN_FPS: 30,
-
-  // 渲染时间阈值 (ms)
-  MAX_RENDER_TIME: 16, // 60fps
-  WARNING_RENDER_TIME: 33 // 30fps
+  SMALL_DATASET: 10000, // 小数据集：< 1万
+  MEDIUM_DATASET: 50000, // 中等数据集：1-5万
+  LARGE_DATASET: 200000, // 大数据集：5-20万
+  HUGE_DATASET: 1000000, // 超大数据集：20-100万
+  FPS_TARGET: 30, // 目标帧率
+  RENDER_TIME_WARNING: 100, // 渲染时间警告阈值（ms）
+  MAX_RENDER_POINTS: 30000 // 最大渲染点数（视觉质量和性能的平衡点）
 }
 
 // ==================== 抽稀配置 ====================
@@ -64,14 +60,16 @@ export const DECIMATION_LEVELS = {
   NONE: 0,
   LIGHT: 1,
   MEDIUM: 2,
-  HEAVY: 3
+  HEAVY: 3,
+  EXTREME: 4
 }
 
 export const DECIMATION_RATES = [
   1.0, // NONE: 100%
-  0.5, // LIGHT: 50%
-  0.2, // MEDIUM: 20%
-  0.05 // HEAVY: 5%
+  0.3, // LIGHT: 30%
+  0.1, // MEDIUM: 10%
+  0.02, // HEAVY: 2%
+  0.005 // EXTREME: 0.5% (for 1M+ data)
 ]
 
 // ==================== LOD 配置 ====================
@@ -95,7 +93,7 @@ export const CANVAS_CONFIG = {
   DEFAULT_SIZE: 800,
   MIN_SIZE: 400,
   MAX_SIZE: 2000,
-  SCALE_FACTOR: 0.85, // 晶圆占画布的比例
+  SCALE_FACTOR: 0.75, // 晶圆占画布的比例（留出更多边距）
 
   // Canvas context 选项
   CONTEXT_OPTIONS: {
