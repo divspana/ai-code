@@ -113,6 +113,15 @@ const routes: RouteRecordRaw[] = [
       title: 'Wafer Map 配置',
       icon: 'Setting'
     }
+  },
+  {
+    path: '/wafer-map-demo',
+    name: 'WaferMapDemo',
+    component: () => import('../views/WaferMapDemo.vue'),
+    meta: {
+      title: 'Wafer Map 组件',
+      icon: 'Grid'
+    }
   }
 ]
 
