@@ -238,10 +238,39 @@ const generateDefects = () => {
 
   const startTime = performance.now()
 
+  // 计算晶圆上可能的 Die 范围
+  const waferRadius = waferConfig.diameter / 2
+  const dieWidthWithScribe = waferConfig.dieWidth + waferConfig.scribeLineX
+  const dieHeightWithScribe = waferConfig.dieHeight + waferConfig.scribeLineY
+
+  // 计算最大行列数
+  const maxRows = Math.ceil(waferRadius / dieHeightWithScribe) * 2
+  const maxCols = Math.ceil(waferRadius / dieWidthWithScribe) * 2
+
+  // 生成所有可能的 Die 位置
+  const possibleDies: Array<{ row: number; col: number }> = []
+  for (let row = -Math.floor(maxRows / 2); row <= Math.floor(maxRows / 2); row++) {
+    for (let col = -Math.floor(maxCols / 2); col <= Math.floor(maxCols / 2); col++) {
+      // 简单的圆形检测：Die 中心到晶圆中心的距离
+      const centerX_mm = col * dieWidthWithScribe + waferConfig.dieOffsetX
+      const centerY_mm = row * dieHeightWithScribe + waferConfig.dieOffsetY
+      const distanceToCenter = Math.sqrt(centerX_mm * centerX_mm + centerY_mm * centerY_mm)
+
+      // 如果 Die 中心在有效区域内，认为是有效 Die
+      if (distanceToCenter <= waferRadius - waferConfig.edgeExclusion) {
+        possibleDies.push({ row, col })
+      }
+    }
+  }
+
+  // 在有效 Die 上随机生成缺陷
   for (let i = 0; i < defectCount.value; i++) {
+    // 随机选择一个有效 Die
+    const randomDie = possibleDies[Math.floor(Math.random() * possibleDies.length)]
+
     newDefects.push({
-      dieRow: Math.floor(Math.random() * 13) - 6,
-      dieCol: Math.floor(Math.random() * 13) - 6,
+      dieRow: randomDie.row,
+      dieCol: randomDie.col,
       x: Math.random(),
       y: Math.random(),
       type: defectTypes[Math.floor(Math.random() * defectTypes.length)],
@@ -252,7 +281,9 @@ const generateDefects = () => {
   defects.value = newDefects
 
   const generateTime = performance.now() - startTime
-  ElMessage.success(`生成 ${defectCount.value} 个缺陷，耗时 ${generateTime.toFixed(2)}ms`)
+  ElMessage.success(
+    `生成 ${defectCount.value} 个缺陷，分布在 ${possibleDies.length} 个 Die 上，耗时 ${generateTime.toFixed(2)}ms`
+  )
 }
 
 /**

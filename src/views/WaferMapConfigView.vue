@@ -56,10 +56,37 @@ function generateTestDefects(count: number) {
   const defects = []
   const defectTypes = ['scratch', 'particle', 'void', 'crack', 'contamination']
 
+  // 计算晶圆上可能的 Die 范围
+  const waferRadius = config.value.diameter / 2
+  const dieWidthWithScribe = config.value.dieWidth + config.value.scribeLineX
+  const dieHeightWithScribe = config.value.dieHeight + config.value.scribeLineY
+
+  // 计算最大行列数
+  const maxRows = Math.ceil(waferRadius / dieHeightWithScribe) * 2
+  const maxCols = Math.ceil(waferRadius / dieWidthWithScribe) * 2
+
+  // 生成所有可能的 Die 位置（简化版，不做精确的圆形检测）
+  const possibleDies: Array<{ row: number; col: number }> = []
+  for (let row = -Math.floor(maxRows / 2); row <= Math.floor(maxRows / 2); row++) {
+    for (let col = -Math.floor(maxCols / 2); col <= Math.floor(maxCols / 2); col++) {
+      // 简单的圆形检测：Die 中心到晶圆中心的距离
+      const centerX_mm = col * dieWidthWithScribe + config.value.dieOffsetX
+      const centerY_mm = row * dieHeightWithScribe + config.value.dieOffsetY
+      const distanceToCenter = Math.sqrt(centerX_mm * centerX_mm + centerY_mm * centerY_mm)
+
+      // 如果 Die 中心在有效区域内，认为是有效 Die
+      if (distanceToCenter <= waferRadius - config.value.edgeExclusion) {
+        possibleDies.push({ row, col })
+      }
+    }
+  }
+
+  console.log(`Found ${possibleDies.length} possible dies on wafer`)
+
+  // 在有效 Die 上随机生成缺陷
   for (let i = 0; i < count; i++) {
-    // 随机生成 Die 位置（在 -6 到 6 的范围内）
-    const dieRow = Math.floor(Math.random() * 13) - 6
-    const dieCol = Math.floor(Math.random() * 13) - 6
+    // 随机选择一个有效 Die
+    const randomDie = possibleDies[Math.floor(Math.random() * possibleDies.length)]
 
     // 随机生成 Die 内的位置（0-1）
     const x = Math.random()
@@ -71,10 +98,17 @@ function generateTestDefects(count: number) {
     // 随机生成缺陷大小（1.5-3）
     const size = 1.5 + Math.random() * 1.5
 
-    defects.push({ dieRow, dieCol, x, y, type, size })
+    defects.push({
+      dieRow: randomDie.row,
+      dieCol: randomDie.col,
+      x,
+      y,
+      type,
+      size
+    })
   }
 
-  console.log(`Generated ${count} test defects`)
+  console.log(`Generated ${count} test defects on ${possibleDies.length} dies`)
   return defects
 }
 </script>
