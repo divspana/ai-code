@@ -10,6 +10,9 @@ export type YDirection = 'UP' | 'DOWN'
 
 // ==================== 缺陷类型 ====================
 
+/**
+ * 传统的坏点数据格式（单个坏点对象）
+ */
 export interface Defect {
   dieRow: number
   dieCol: number
@@ -19,6 +22,17 @@ export interface Defect {
   size?: number
   severity?: string
   [key: string]: string | number | undefined // 允许扩展字段
+}
+
+/**
+ * 新的坏点数据格式（数组形式）
+ * logicx 和 logicy 是对应的坐标数组
+ */
+export interface DefectArrayData {
+  logicx: number[] // X 坐标数组
+  logicy: number[] // Y 坐标数组
+  defectType?: string[] // 坏点类型数组（可选）
+  [key: string]: number[] | string[] | undefined // 其他扩展字段
 }
 
 export interface DefectType {
@@ -113,7 +127,10 @@ export interface RenderConfig {
 export interface WaferMapProps {
   // 必需参数
   waferConfig: WaferConfig
-  defects?: Defect[]
+
+  // 坏点数据（支持两种格式）
+  defects?: Defect[] // 传统格式
+  defectData?: DefectArrayData // 新格式 {logicx, logicy}
 
   // 可选配置
   renderConfig?: Partial<RenderConfig>
