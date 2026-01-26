@@ -122,54 +122,6 @@
             @error="handleError"
           />
         </el-card>
-
-        <!-- 选中的 Die 信息 -->
-        <el-card v-if="clickedDie" class="info-card">
-          <template #header>
-            <div class="card-header">
-              <span>Die 详细信息</span>
-              <el-button size="small" @click="clickedDie = null">关闭</el-button>
-            </div>
-          </template>
-
-          <el-descriptions :column="2" border>
-            <el-descriptions-item label="行号">{{ clickedDie.row }}</el-descriptions-item>
-            <el-descriptions-item label="列号">{{ clickedDie.col }}</el-descriptions-item>
-            <el-descriptions-item label="X 坐标"
-              >{{ clickedDie.x.toFixed(2) }} mm</el-descriptions-item
-            >
-            <el-descriptions-item label="Y 坐标"
-              >{{ clickedDie.y.toFixed(2) }} mm</el-descriptions-item
-            >
-            <el-descriptions-item label="缺陷数量" :span="2">
-              <el-tag :type="clickedDie.defects?.length ? 'danger' : 'success'">
-                {{ clickedDie.defects?.length || 0 }}
-              </el-tag>
-            </el-descriptions-item>
-          </el-descriptions>
-
-          <el-divider v-if="clickedDie.defects && clickedDie.defects.length > 0"
-            >缺陷列表</el-divider
-          >
-
-          <el-table
-            v-if="clickedDie.defects && clickedDie.defects.length > 0"
-            :data="clickedDie.defects"
-            style="width: 100%"
-            max-height="300"
-          >
-            <el-table-column prop="type" label="类型" width="120" />
-            <el-table-column prop="x" label="X 位置" width="100">
-              <template #default="{ row }">{{ row.x.toFixed(3) }}</template>
-            </el-table-column>
-            <el-table-column prop="y" label="Y 位置" width="100">
-              <template #default="{ row }">{{ row.y.toFixed(3) }}</template>
-            </el-table-column>
-            <el-table-column prop="size" label="大小" width="100">
-              <template #default="{ row }">{{ row.size?.toFixed(2) || '-' }}</template>
-            </el-table-column>
-          </el-table>
-        </el-card>
       </el-col>
     </el-row>
   </div>

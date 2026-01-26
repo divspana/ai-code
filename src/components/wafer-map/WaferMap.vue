@@ -19,84 +19,6 @@
         @wheel="onWheel"
         @contextmenu.prevent
       ></canvas>
-
-      <!-- 选中坏点的信息框 -->
-      <div
-        v-for="(defect, index) in selectedDefects"
-        :key="index"
-        class="defect-label"
-        :class="{ dragging: draggingIndex === index }"
-        :style="{
-          left: defect.labelX + 'px',
-          top: defect.labelY + 'px'
-        }"
-        @mousedown="onLabelMouseDown($event, index)"
-      >
-        <div class="label-content">
-          <div class="label-info">logics = {{ defect.dieRow * 100 + defect.dieCol }}</div>
-          <div class="label-info">begin = {{ (defect.relX * 1000).toFixed(1) }}</div>
-          <div class="label-info">defectId = {{ index + 1 }}</div>
-          <div class="label-info">manualBinDefectType = defect_{{ defect.type }}</div>
-          <div class="label-info">inspectedDefectTypeId = {{ Math.floor(defect.relY * 100) }}</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Tooltip -->
-    <div
-      v-if="tooltip.visible && renderConfig.enableTooltip"
-      class="wafer-tooltip"
-      :style="{
-        left: tooltip.x + 'px',
-        top: tooltip.y + 'px'
-      }"
-    >
-      <div class="tooltip-title">Die 信息</div>
-      <div class="tooltip-item">
-        <span class="label">位置:</span>
-        <span class="value">Row {{ tooltip.dieInfo?.row }}, Col {{ tooltip.dieInfo?.col }}</span>
-      </div>
-      <div class="tooltip-item">
-        <span class="label">坐标:</span>
-        <span class="value">
-          X: {{ tooltip.dieInfo?.x?.toFixed(2) }}mm, Y: {{ tooltip.dieInfo?.y?.toFixed(2) }}mm
-        </span>
-      </div>
-      <div
-        v-if="tooltip.dieInfo?.defects && tooltip.dieInfo.defects.length > 0"
-        class="tooltip-item"
-      >
-        <span class="label">缺陷数:</span>
-        <span class="value">{{ tooltip.dieInfo.defects.length }}</span>
-      </div>
-    </div>
-
-    <!-- 统计信息 -->
-    <div v-if="showStats" class="stats-panel">
-      <div class="stat-item">
-        <span class="label">Die:</span>
-        <span class="value">{{ validDies }} / {{ totalDies }}</span>
-      </div>
-      <div class="stat-item">
-        <span class="label">缺陷:</span>
-        <span class="value">{{ defectStats.rendered }} / {{ defectStats.total }}</span>
-      </div>
-      <div class="stat-item">
-        <span class="label">FPS:</span>
-        <span class="value">{{ stats.fps.toFixed(1) }}</span>
-      </div>
-      <div class="stat-item">
-        <span class="label">渲染:</span>
-        <span class="value">{{ stats.renderTime.toFixed(1) }}ms</span>
-      </div>
-    </div>
-
-    <!-- 调试信息 -->
-    <div v-if="showDebugInfo" class="debug-panel">
-      <div>Zoom: {{ zoom.toFixed(2) }}x</div>
-      <div>LOD: {{ stats.lodLevel }}</div>
-      <div>Selected Defects: {{ selectedDefects.length }}</div>
-      <div>{{ performanceSuggestion }}</div>
     </div>
   </div>
 </template>
@@ -110,6 +32,7 @@ import { useWaferRenderer } from './hooks/useWaferRenderer'
 import { useDefectLayer } from './hooks/useDefectLayer'
 import { useInteraction } from './hooks/useInteraction'
 import { usePerformance } from './hooks/usePerformance'
+import { optimizeLabelLayout, initializeLabelPosition } from './utils/labelLayout'
 
 // Props & Emits
 const props = withDefaults(defineProps<WaferMapProps>(), {
@@ -141,15 +64,17 @@ const {
   resetAllTransforms
 } = useCanvasLayers()
 
-const { totalDies, validDies, validDiePositions, drawParams, renderBackground } = useWaferRenderer(
-  props.waferConfig
-)
+const { validDiePositions, drawParams, renderBackground } = useWaferRenderer(props.waferConfig)
 
 const { defectStats, renderDefects } = useDefectLayer()
 
 const {
   zoom,
-  tooltip,
+  // isSelecting,
+  // selectionStart,
+  // selectionEnd,
+  // selectionRect,
+  // tooltip,
   handleMouseDown,
   handleMouseMove,
   handleMouseUp,
@@ -157,6 +82,9 @@ const {
   handleClick,
   handleWheel,
   drawSelectionBox
+  // getDieAtPosition,
+  // getDiesInSelection,
+  // reset
 } = useInteraction()
 
 // 选中的坏点状态
@@ -181,13 +109,13 @@ const showOnlySelected = ref(false)
 // 拖拽状态
 const draggingIndex = ref<number | null>(null)
 const dragOffset = ref({ x: 0, y: 0 })
+const hoveredLabelIndex = ref<number | null>(null)
 
 const {
   stats,
   recordFrameTime,
   calculateViewport,
   calculateLODLevel,
-  getPerformanceSuggestion,
   updateDefectStats,
   updateLODLevel
 } = usePerformance()
@@ -197,9 +125,6 @@ const containerStyle = computed(() => ({
   width: typeof props.width === 'number' ? `${props.width}px` : props.width,
   height: typeof props.height === 'number' ? `${props.height}px` : props.height
 }))
-
-// 性能建议
-const performanceSuggestion = computed(() => getPerformanceSuggestion())
 
 // ==================== 核心渲染方法 ====================
 
@@ -283,6 +208,24 @@ const renderDefectsLayer = async (size: number) => {
 }
 
 /**
+ * 检测鼠标是否在某个信息框上
+ */
+const getLabelIndexAtPosition = (mouseX: number, mouseY: number): number => {
+  for (let i = selectedDefects.value.length - 1; i >= 0; i--) {
+    const defect = selectedDefects.value[i]
+    if (
+      mouseX >= defect.labelX &&
+      mouseX <= defect.labelX + LABEL_WIDTH &&
+      mouseY >= defect.labelY &&
+      mouseY <= defect.labelY + LABEL_HEIGHT
+    ) {
+      return i
+    }
+  }
+  return -1
+}
+
+/**
  * 渲染交互层
  */
 const renderInteractionLayer = () => {
@@ -295,22 +238,59 @@ const renderInteractionLayer = () => {
   // 绘制选择框
   drawSelectionBox(ctx)
 
-  // 绘制连线
+  // 绘制连线和信息框
   if (selectedDefects.value.length > 0) {
-    ctx.save()
-    selectedDefects.value.forEach(defect => {
-      const x1 = defect.x
-      const y1 = defect.y
-      // 连接到信息框左边缘的中心位置
-      const x2 = defect.labelX
-      const y2 = defect.labelY + defect.labelHeight / 2
+    const lineHeight = 14
+    const padding = 8
+    const labelHalfHeight = LABEL_HEIGHT / 2
 
+    ctx.save()
+
+    // 设置文本样式（只设置一次）
+    ctx.font = '10px "Courier New", monospace'
+    ctx.textBaseline = 'top'
+
+    selectedDefects.value.forEach((defect, index) => {
+      const { x: x1, y: y1, labelX: x2, labelY: y2 } = defect
+
+      // 更新 labelHeight 用于后续计算
+      defect.labelHeight = LABEL_HEIGHT
+
+      // 绘制连线（从坏点到信息框左边缘中心）
       ctx.beginPath()
       ctx.moveTo(x1, y1)
-      ctx.lineTo(x2, y2)
+      ctx.lineTo(x2, y2 + labelHalfHeight)
       ctx.strokeStyle = '#000000'
       ctx.lineWidth = 1
       ctx.stroke()
+
+      // 绘制信息框背景
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(x2, y2, LABEL_WIDTH, LABEL_HEIGHT)
+
+      // 绘制信息框边框
+      ctx.strokeStyle = '#000000'
+      ctx.lineWidth = 1
+      ctx.strokeRect(x2, y2, LABEL_WIDTH, LABEL_HEIGHT)
+
+      // 绘制文本
+      ctx.fillStyle = '#000000'
+
+      const texts = [
+        `logics = ${defect.dieRow * 100 + defect.dieCol}`,
+        `begin = ${(defect.relX * 1000).toFixed(1)}`,
+        `defectId = ${index + 1}`,
+        `manualBinDefectType = defect_${defect.type}`,
+        `inspectedDefectTypeId = ${Math.floor(defect.relY * 100)}`
+      ]
+
+      const textX = x2 + padding
+      let textY = y2 + padding
+
+      for (let i = 0; i < texts.length; i++) {
+        ctx.fillText(texts[i], textX, textY)
+        textY += lineHeight
+      }
     })
     ctx.restore()
   }
@@ -320,21 +300,72 @@ const renderInteractionLayer = () => {
 
 const onMouseDown = (event: MouseEvent) => {
   if (!interactionCanvas.value) return
-  handleMouseDown(event, interactionCanvas.value)
+
+  // 获取鼠标在 Canvas 上的坐标
+  const rect = interactionCanvas.value.getBoundingClientRect()
+  const mouseX = event.clientX - rect.left
+  const mouseY = event.clientY - rect.top
+
+  // 优先检查是否点击在信息框上
+  const clickedLabelIndex = getLabelIndexAtPosition(mouseX, mouseY)
+
+  if (clickedLabelIndex !== -1) {
+    // 点击在信息框上，开始拖拽
+    event.stopPropagation()
+    draggingIndex.value = clickedLabelIndex
+    const defect = selectedDefects.value[clickedLabelIndex]
+    dragOffset.value = {
+      x: mouseX - defect.labelX,
+      y: mouseY - defect.labelY
+    }
+  } else {
+    // 点击在其他地方，执行原有的框选逻辑
+    handleMouseDown(event, interactionCanvas.value)
+  }
 }
 
 const onMouseMove = (event: MouseEvent) => {
   if (!interactionCanvas.value) return
 
-  handleMouseMove(
-    event,
-    interactionCanvas.value,
-    validDiePositions.value,
-    drawParams.value.scale * props.waferConfig.dieWidth,
-    drawParams.value.scale * props.waferConfig.dieHeight,
-    props.defects,
-    renderConfig.value.enableTooltip
-  )
+  const rect = interactionCanvas.value.getBoundingClientRect()
+  const mouseX = event.clientX - rect.left
+  const mouseY = event.clientY - rect.top
+
+  // 如果正在拖拽信息框
+  if (draggingIndex.value !== null) {
+    const defect = selectedDefects.value[draggingIndex.value]
+    if (defect) {
+      defect.labelX = mouseX - dragOffset.value.x
+      defect.labelY = mouseY - dragOffset.value.y
+
+      // 重绘交互层（包括连线）
+      renderInteractionLayer()
+    }
+    return
+  }
+
+  // 检测鼠标是否在信息框上，改变光标样式
+  const labelIndex = getLabelIndexAtPosition(mouseX, mouseY)
+  hoveredLabelIndex.value = labelIndex
+
+  if (labelIndex !== -1) {
+    // 鼠标在信息框上，显示移动光标
+    interactionCanvas.value.style.cursor = 'move'
+  } else {
+    // 鼠标不在信息框上，恢复默认光标
+    interactionCanvas.value.style.cursor = 'crosshair'
+
+    // 执行原有的 hover 逻辑（显示 tooltip 等）
+    handleMouseMove(
+      event,
+      interactionCanvas.value,
+      validDiePositions.value,
+      drawParams.value.scale * props.waferConfig.dieWidth,
+      drawParams.value.scale * props.waferConfig.dieHeight,
+      props.defects,
+      renderConfig.value.enableTooltip
+    )
+  }
 
   // 重绘交互层
   renderInteractionLayer()
@@ -342,6 +373,12 @@ const onMouseMove = (event: MouseEvent) => {
 
 const onMouseUp = (event: MouseEvent) => {
   if (!interactionCanvas.value) return
+
+  // 如果正在拖拽信息框，结束拖拽
+  if (draggingIndex.value !== null) {
+    draggingIndex.value = null
+    return
+  }
 
   const result = handleMouseUp(
     event,
@@ -369,7 +406,21 @@ const onMouseUp = (event: MouseEvent) => {
     renderDefectsLayer(canvasSize.value)
   }
 
+  // 重新渲染交互层（包括信息框）
   renderInteractionLayer()
+}
+
+// 布局配置常量
+const LABEL_WIDTH = 250
+const LABEL_HEIGHT = 80
+const LABEL_LAYOUT_CONFIG = {
+  labelWidth: LABEL_WIDTH,
+  labelHeight: LABEL_HEIGHT,
+  minDistance: -20, // 允许轻微重叠
+  maxIterations: 15,
+  overlapThreshold: 0.3, // 重叠面积阈值 30%
+  pushDistance: 5,
+  canvasSize: 0 // 运行时设置
 }
 
 /**
@@ -395,7 +446,15 @@ const getDefectsInSelection = (selectedDies: DieInfo[]) => {
         const x = diePos.canvasX + defect.x * drawParams.value.scale * props.waferConfig.dieWidth
         const y = diePos.canvasY + defect.y * drawParams.value.scale * props.waferConfig.dieHeight
 
-        // 初始化信息框位置（默认在坏点右侧 60px）
+        // 使用工具函数初始化信息框位置
+        const { labelX, labelY } = initializeLabelPosition(
+          x,
+          y,
+          LABEL_WIDTH,
+          LABEL_HEIGHT,
+          canvasSize.value
+        )
+
         selected.push({
           x,
           y,
@@ -404,18 +463,21 @@ const getDefectsInSelection = (selectedDies: DieInfo[]) => {
           dieCol: defect.dieCol,
           relX: defect.x,
           relY: defect.y,
-          labelX: x + 60,
-          labelY: y,
-          labelHeight: 70 // 默认高度，后续会更新
+          labelX,
+          labelY,
+          labelHeight: LABEL_HEIGHT
         })
       }
     }
   })
 
+  // 应用智能布局算法
+  if (selected.length > 1) {
+    LABEL_LAYOUT_CONFIG.canvasSize = canvasSize.value
+    optimizeLabelLayout(selected, LABEL_LAYOUT_CONFIG)
+  }
+
   selectedDefects.value = selected
-  console.log(
-    `Selected ${selected.length} defects in ${selectedDies.length} dies from ${props.defects.length} total defects`
-  )
 }
 
 const onMouseLeave = () => {
@@ -453,73 +515,6 @@ const onWheel = (event: WheelEvent) => {
       renderDefectsLayer(canvasSize.value)
     })
   }
-}
-
-// ==================== 信息框拖拽 ====================
-
-/**
- * 信息框鼠标按下
- */
-const onLabelMouseDown = (event: MouseEvent, index: number) => {
-  event.stopPropagation()
-  event.preventDefault()
-
-  draggingIndex.value = index
-  const defect = selectedDefects.value[index]
-
-  // 获取容器的位置
-  const containerRect = containerRef.value?.getBoundingClientRect()
-  if (!containerRect) return
-
-  // 计算鼠标相对于容器的位置
-  const mouseX = event.clientX - containerRect.left
-  const mouseY = event.clientY - containerRect.top
-
-  // 记录鼠标相对于信息框的偏移
-  dragOffset.value = {
-    x: mouseX - defect.labelX,
-    y: mouseY - defect.labelY
-  }
-
-  // 添加全局事件监听
-  document.addEventListener('mousemove', onLabelMouseMove)
-  document.addEventListener('mouseup', onLabelMouseUp)
-}
-
-/**
- * 信息框拖拽移动
- */
-const onLabelMouseMove = (event: MouseEvent) => {
-  if (draggingIndex.value === null) return
-
-  const defect = selectedDefects.value[draggingIndex.value]
-  if (!defect) return
-
-  // 获取容器的位置
-  const containerRect = containerRef.value?.getBoundingClientRect()
-  if (!containerRect) return
-
-  // 计算鼠标相对于容器的位置
-  const mouseX = event.clientX - containerRect.left
-  const mouseY = event.clientY - containerRect.top
-
-  // 计算新位置
-  defect.labelX = mouseX - dragOffset.value.x
-  defect.labelY = mouseY - dragOffset.value.y
-
-  // 重新渲染交互层以更新连线
-  renderInteractionLayer()
-}
-
-/**
- * 信息框拖拽结束
- */
-const onLabelMouseUp = () => {
-  draggingIndex.value = null
-
-  // 移除全局事件监听
-  document.removeEventListener('mousemove', onLabelMouseMove)
-  document.removeEventListener('mouseup', onLabelMouseUp)
 }
 
 // ==================== 生命周期 ====================
@@ -605,152 +600,5 @@ defineExpose({
 .canvas-interactive {
   cursor: crosshair;
   z-index: 10;
-}
-
-.wafer-tooltip {
-  position: absolute;
-  background: rgba(0, 0, 0, 0.85);
-  color: #fff;
-  padding: 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  pointer-events: none;
-  z-index: 1000;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-  min-width: 200px;
-
-  .tooltip-title {
-    font-weight: 600;
-    font-size: 14px;
-    margin-bottom: 8px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  }
-
-  .tooltip-item {
-    display: flex;
-    justify-content: space-between;
-    margin: 6px 0;
-    line-height: 1.5;
-
-    .label {
-      color: rgba(255, 255, 255, 0.7);
-      margin-right: 12px;
-    }
-
-    .value {
-      color: #fff;
-      font-weight: 500;
-    }
-  }
-}
-
-.stats-panel {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: rgba(255, 255, 255, 0.95);
-  padding: 12px;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  font-size: 12px;
-  z-index: 100;
-
-  .stat-item {
-    display: flex;
-    justify-content: space-between;
-    margin: 4px 0;
-    gap: 12px;
-
-    .label {
-      color: #606266;
-    }
-
-    .value {
-      font-weight: 600;
-      color: #409eff;
-    }
-  }
-}
-
-.debug-panel {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  background: rgba(0, 0, 0, 0.8);
-  color: #fff;
-  padding: 8px 12px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-family: monospace;
-  z-index: 100;
-
-  div {
-    margin: 2px 0;
-  }
-}
-
-.defect-label {
-  position: absolute;
-  pointer-events: auto;
-  z-index: 500;
-  cursor: move;
-  user-select: none;
-
-  &:hover {
-    .label-content {
-      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
-    }
-  }
-
-  &.dragging {
-    cursor: grabbing;
-    z-index: 1000;
-
-    .label-content {
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-    }
-  }
-
-  .label-content {
-    background: #ffffff;
-    border: 1px solid #000000;
-    border-radius: 2px;
-    padding: 6px 10px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-    font-size: 11px;
-    white-space: nowrap;
-    font-family: 'Courier New', monospace;
-    line-height: 1.4;
-
-    .label-title {
-      font-weight: 600;
-      color: #000000;
-      margin-bottom: 3px;
-      font-size: 12px;
-    }
-
-    .label-info {
-      color: #333333;
-      margin: 1px 0;
-      font-size: 10px;
-    }
-  }
-}
-
-.defect-lines {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 450;
-  overflow: visible;
-
-  line {
-    stroke-linecap: round;
-    filter: drop-shadow(0 1px 3px rgba(64, 158, 255, 0.5));
-  }
 }
 </style>
