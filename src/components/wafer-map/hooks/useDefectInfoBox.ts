@@ -7,6 +7,7 @@ import { ref } from 'vue'
 import type { SelectedDefectInfo } from '../types/defectData'
 import { optimizeLabelLayout, initializeLabelPosition } from '../utils/labelLayout'
 import type { LabelLayoutConfig } from '../utils/labelLayout'
+import { createInfoBoxOptimizer, type OptimizationConfig } from '../utils/infoBoxOptimizer'
 
 // 信息框配置常量
 export const INFO_BOX_CONFIG = {
@@ -26,18 +27,24 @@ export const INFO_BOX_CONFIG = {
 export interface DefectInfoBoxOptions {
   canvasSize: number
   enableDrag?: boolean
+  enableOptimization?: boolean // 是否启用性能优化
+  optimizationConfig?: Partial<OptimizationConfig> // 优化配置
 }
 
 export function useDefectInfoBox(options: DefectInfoBoxOptions) {
-  const { canvasSize } = options
+  const { canvasSize, enableOptimization = false, optimizationConfig } = options
 
   // 选中的坏点信息
   const selectedDefects = ref<SelectedDefectInfo[]>([])
+  const totalDefectsCount = ref(0) // 总坏点数（优化前）
 
   // 拖拽状态
   const draggingIndex = ref<number | null>(null)
   const dragOffset = ref({ x: 0, y: 0 })
   const hoveredIndex = ref<number | null>(null)
+
+  // 性能优化器
+  const optimizer = enableOptimization ? createInfoBoxOptimizer(optimizationConfig) : null
 
   /**
    * 设置选中的坏点数据
@@ -45,7 +52,16 @@ export function useDefectInfoBox(options: DefectInfoBoxOptions) {
   const setSelectedDefects = (
     defects: Array<{ canvasX: number; canvasY: number; [key: string]: unknown }>
   ) => {
-    const defectsWithLabels: SelectedDefectInfo[] = defects.map((defect, index) => {
+    totalDefectsCount.value = defects.length
+
+    // 如果启用优化且数量过多，先进行优化
+    let optimizedDefects = defects
+    if (optimizer && defects.length > 100) {
+      const viewport = { width: canvasSize, height: canvasSize }
+      optimizedDefects = optimizer.optimize(defects as SelectedDefectInfo[], viewport)
+    }
+
+    const defectsWithLabels: SelectedDefectInfo[] = optimizedDefects.map((defect, index) => {
       // 初始化信息框位置
       const { labelX, labelY } = initializeLabelPosition(
         defect.canvasX,
@@ -188,6 +204,7 @@ export function useDefectInfoBox(options: DefectInfoBoxOptions) {
       // 绘制文本
       ctx.fillStyle = '#000000'
 
+      // 构建文本内容
       const texts = [
         `logicx = ${defect.x?.toFixed(1) || 'N/A'}`,
         `logicy = ${defect.y?.toFixed(1) || 'N/A'}`,
@@ -195,6 +212,15 @@ export function useDefectInfoBox(options: DefectInfoBoxOptions) {
         `type = ${defect.type || 'unknown'}`,
         `index = ${defect.index}`
       ]
+
+      // 如果是聚类，添加聚类信息
+      const defectWithCluster = defect as SelectedDefectInfo & {
+        isCluster?: boolean
+        clusterSize?: number
+      }
+      if (defectWithCluster.isCluster && defectWithCluster.clusterSize) {
+        texts.push(`cluster: ${defectWithCluster.clusterSize} defects`)
+      }
 
       const textX = x2 + PADDING
       let textY = y2 + PADDING
@@ -208,9 +234,19 @@ export function useDefectInfoBox(options: DefectInfoBoxOptions) {
     ctx.restore()
   }
 
+  /**
+   * 更新优化配置
+   */
+  const updateOptimizationConfig = (config: Partial<OptimizationConfig>) => {
+    if (optimizer) {
+      optimizer.updateConfig(config)
+    }
+  }
+
   return {
     // 状态
     selectedDefects,
+    totalDefectsCount,
     draggingIndex,
     hoveredIndex,
 
@@ -222,6 +258,7 @@ export function useDefectInfoBox(options: DefectInfoBoxOptions) {
     updateDrag,
     endDrag,
     updateHover,
-    render
+    render,
+    updateOptimizationConfig
   }
 }
