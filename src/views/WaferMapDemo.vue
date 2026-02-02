@@ -100,6 +100,49 @@
             <div class="card-header">
               <span>Wafer Map 可视化</span>
               <div class="header-actions">
+                <!-- 交互模式切换 -->
+                <el-button-group size="small" style="margin-right: 12px">
+                  <el-button
+                    :type="interactionMode === 'select' ? 'primary' : ''"
+                    @click="interactionMode = 'select'"
+                    title="矩形框选模式"
+                  >
+                    <el-icon><Pointer /></el-icon>
+                    矩形
+                  </el-button>
+                  <el-button
+                    :type="interactionMode === 'polygon' ? 'primary' : ''"
+                    @click="interactionMode = 'polygon'"
+                    title="多边形框选模式"
+                  >
+                    <el-icon><Connection /></el-icon>
+                    多边形
+                  </el-button>
+                  <el-button
+                    :type="interactionMode === 'pan' ? 'primary' : ''"
+                    @click="interactionMode = 'pan'"
+                    title="拖拽模式"
+                  >
+                    <el-icon><Rank /></el-icon>
+                    拖拽
+                  </el-button>
+                </el-button-group>
+
+                <!-- 缩放控制 -->
+                <el-button-group size="small" style="margin-right: 12px">
+                  <el-button @click="handleZoomIn">
+                    <el-icon><ZoomIn /></el-icon>
+                  </el-button>
+                  <el-button @click="handleZoomOut">
+                    <el-icon><ZoomOut /></el-icon>
+                  </el-button>
+                  <el-button @click="handleResetZoom">
+                    <el-icon><RefreshRight /></el-icon>
+                  </el-button>
+                </el-button-group>
+                <el-tag v-if="zoomState" type="info" style="margin-right: 12px">
+                  {{ zoomState.percentage }}%
+                </el-tag>
                 <el-tag v-if="selectedDies.length > 0" type="success">
                   已选择 {{ selectedDies.length }} 个 Die
                 </el-tag>
@@ -113,6 +156,7 @@
             :wafer-config="waferConfig"
             :defects="defects"
             :render-config="renderConfig"
+            :interaction-mode="interactionMode"
             :show-stats="showStats"
             :show-debug-info="showDebugInfo"
             @die-click="handleDieClick"
@@ -130,8 +174,15 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
+import { ZoomIn, ZoomOut, RefreshRight, Pointer, Rank, Connection } from '@element-plus/icons-vue'
 import { WaferMap } from '@/components/wafer-map'
-import type { WaferConfig, RenderConfig, Defect, DieInfo } from '@/components/wafer-map'
+import type {
+  WaferConfig,
+  RenderConfig,
+  Defect,
+  DieInfo,
+  InteractionMode
+} from '@/components/wafer-map'
 
 // Wafer 配置
 const waferConfig = reactive<WaferConfig>({
@@ -179,6 +230,17 @@ const showDebugInfo = ref(false)
 // 交互状态
 const clickedDie = ref<DieInfo | null>(null)
 const selectedDies = ref<DieInfo[]>([])
+
+// 交互模式
+const interactionMode = ref<InteractionMode>('select')
+
+// 缩放状态
+const zoomState = ref<{
+  scale: number
+  translateX: number
+  translateY: number
+  percentage: number
+} | null>(null)
 
 // Web Worker 实例
 let dataWorker: Worker | null = null
@@ -316,6 +378,7 @@ const handleSelection = (dies: DieInfo[]) => {
  */
 const handleZoom = (level: number) => {
   console.log('Zoom level:', level)
+  updateZoomState()
 }
 
 /**
@@ -343,6 +406,45 @@ const clearSelection = () => {
   // 调用 WaferMap 组件的清除选择方法
   if (waferMapRef.value) {
     waferMapRef.value.clearSelection()
+  }
+}
+
+/**
+ * 放大
+ */
+const handleZoomIn = () => {
+  if (waferMapRef.value) {
+    waferMapRef.value.zoomIn()
+    updateZoomState()
+  }
+}
+
+/**
+ * 缩小
+ */
+const handleZoomOut = () => {
+  if (waferMapRef.value) {
+    waferMapRef.value.zoomOut()
+    updateZoomState()
+  }
+}
+
+/**
+ * 重置缩放
+ */
+const handleResetZoom = () => {
+  if (waferMapRef.value) {
+    waferMapRef.value.resetZoom()
+    updateZoomState()
+  }
+}
+
+/**
+ * 更新缩放状态显示
+ */
+const updateZoomState = () => {
+  if (waferMapRef.value) {
+    zoomState.value = waferMapRef.value.getZoomState()
   }
 }
 

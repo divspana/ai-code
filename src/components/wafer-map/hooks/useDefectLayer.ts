@@ -194,10 +194,10 @@ export function useDefectLayer() {
     enableCulling: boolean,
     enableDecimation: boolean
   ) => {
-    const { canvas, ctx } = layer
+    const { ctx } = layer
 
-    // 清空
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    // 注意：clearRect 由外部 clearLayer 处理（使用 save/restore）
+    // 这里不需要手动清空，保持变换状态
 
     if (defects.length === 0) return
 

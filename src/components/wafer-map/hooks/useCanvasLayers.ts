@@ -55,7 +55,14 @@ export function useCanvasLayers() {
     const layer = layers.value.get(type)
     if (layer) {
       const { canvas, ctx } = layer
+      // 保存当前变换
+      ctx.save()
+      // 重置变换以确保清除整个画布
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      // 清除整个画布
       ctx.clearRect(0, 0, canvas.width, canvas.height)
+      // 恢复之前的变换
+      ctx.restore()
     }
   }
 

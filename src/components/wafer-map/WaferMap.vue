@@ -17,14 +17,15 @@
         @mouseleave="onMouseLeave"
         @click="onClick"
         @wheel="onWheel"
-        @contextmenu.prevent
+        @contextmenu.prevent="onContextMenu"
+        @dblclick="onDoubleClick"
       ></canvas>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, nextTick, onUnmounted } from 'vue'
 import type { WaferMapProps, WaferMapEmits, DieInfo } from './types'
 import { DEFAULT_RENDER_CONFIG, CANVAS_CONFIG } from './constants'
 import { useCanvasLayers } from './hooks/useCanvasLayers'
@@ -32,13 +33,16 @@ import { useWaferRenderer } from './hooks/useWaferRenderer'
 import { useDefectLayer } from './hooks/useDefectLayer'
 import { useInteraction } from './hooks/useInteraction'
 import { usePerformance } from './hooks/usePerformance'
+import { useWaferZoom } from './hooks/useWaferZoom'
 import { optimizeLabelLayout, initializeLabelPosition } from './utils/labelLayout'
+import { isPointInPolygon, isRectIntersectPolygon } from './utils/polygonUtils'
 
 // Props & Emits
 const props = withDefaults(defineProps<WaferMapProps>(), {
   defects: () => [],
   showDebugInfo: false,
-  showStats: false
+  showStats: false,
+  interactionMode: 'select'
 })
 
 const emit = defineEmits<WaferMapEmits>()
@@ -60,8 +64,7 @@ const {
   interactionCanvas,
   initializeLayers,
   getLayer,
-  clearLayer,
-  resetAllTransforms
+  clearLayer
 } = useCanvasLayers()
 
 const { validDiePositions, drawParams, renderBackground } = useWaferRenderer(props.waferConfig)
@@ -80,12 +83,20 @@ const {
   handleMouseUp,
   handleMouseLeave,
   handleClick,
-  handleWheel,
   drawSelectionBox
   // getDieAtPosition,
   // getDiesInSelection,
   // reset
 } = useInteraction()
+
+// 滚轮缩放功能
+const waferZoom = useWaferZoom({
+  minZoom: 0.5,
+  maxZoom: 5,
+  zoomSpeed: 0.001,
+  smoothZoom: true,
+  zoomStep: 0.2
+})
 
 // 选中的坏点状态
 const selectedDefects = ref<
@@ -110,6 +121,10 @@ const showOnlySelected = ref(false)
 const draggingIndex = ref<number | null>(null)
 const dragOffset = ref({ x: 0, y: 0 })
 const hoveredLabelIndex = ref<number | null>(null)
+
+// 多边形框选状态
+const polygonPoints = ref<Array<{ x: number; y: number }>>([])
+const isPolygonComplete = ref(false)
 
 const {
   stats,
@@ -140,10 +155,20 @@ const render = async () => {
 
     // 初始化图层
     initializeLayers(canvasSize.value, canvasSize.value)
-    resetAllTransforms()
+
+    // 注册图层到缩放 hook
+    const bgLayer = getLayer('background')
+    const defLayer = getLayer('defects')
+    const intLayer = getLayer('interaction')
+
+    if (bgLayer) waferZoom.registerLayer('background', bgLayer.ctx)
+    if (defLayer) waferZoom.registerLayer('defects', defLayer.ctx)
+    if (intLayer) waferZoom.registerLayer('interaction', intLayer.ctx)
+
+    // 应用当前的缩放变换（如果有的话）
+    waferZoom.applyTransformToAllLayers()
 
     // 渲染背景层（晶圆、Die、Reticle）
-    const bgLayer = getLayer('background')
     if (bgLayer) {
       renderBackground(bgLayer, canvasSize.value)
     }
@@ -233,10 +258,128 @@ const renderInteractionLayer = () => {
   if (!interactionLayer) return
 
   const { canvas, ctx } = interactionLayer
-  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  // 注意：clearRect 由外部 clearLayer 处理（使用 save/restore）
 
   // 绘制选择框
   drawSelectionBox(ctx)
+
+  // 绘制多边形框选（在屏幕坐标系下绘制，不受缩放影响）
+  if (props.interactionMode === 'polygon') {
+    ctx.save()
+    // 重置变换，使用屏幕坐标系
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+
+    // 显示操作提示
+    if (polygonPoints.value.length === 0) {
+      ctx.fillStyle = '#409EFF'
+      ctx.font = 'bold 18px Arial'
+      ctx.textAlign = 'center'
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
+      ctx.shadowBlur = 4
+      ctx.fillText('点击添加多边形顶点，右键或双击完成', canvas.width / 2, 40)
+      ctx.shadowBlur = 0
+    }
+
+    if (polygonPoints.value.length > 0) {
+      // 绘制线段的阴影（让线条更明显）
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
+      ctx.shadowBlur = 6
+      ctx.shadowOffsetX = 2
+      ctx.shadowOffsetY = 2
+
+      // 绘制已有的线段
+      ctx.strokeStyle = '#409EFF'
+      ctx.lineWidth = 5
+      ctx.setLineDash([10, 6])
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+
+      ctx.beginPath()
+      ctx.moveTo(polygonPoints.value[0].x, polygonPoints.value[0].y)
+      for (let i = 1; i < polygonPoints.value.length; i++) {
+        ctx.lineTo(polygonPoints.value[i].x, polygonPoints.value[i].y)
+      }
+      ctx.stroke()
+
+      // 重置阴影
+      ctx.shadowColor = 'transparent'
+      ctx.shadowBlur = 0
+      ctx.shadowOffsetX = 0
+      ctx.shadowOffsetY = 0
+
+      // 绘制顶点
+      polygonPoints.value.forEach((point, index) => {
+        // 绘制外圈光晕
+        ctx.beginPath()
+        ctx.arc(point.x, point.y, 12, 0, Math.PI * 2)
+        ctx.fillStyle = index === 0 ? 'rgba(103, 194, 58, 0.3)' : 'rgba(64, 158, 255, 0.3)'
+        ctx.fill()
+
+        // 绘制中圈
+        ctx.beginPath()
+        ctx.arc(point.x, point.y, 8, 0, Math.PI * 2)
+        ctx.fillStyle = index === 0 ? '#67C23A' : '#409EFF'
+        ctx.fill()
+
+        // 绘制白色边框
+        ctx.strokeStyle = '#fff'
+        ctx.lineWidth = 3
+        ctx.stroke()
+
+        // 绘制内圈高光
+        ctx.beginPath()
+        ctx.arc(point.x - 2, point.y - 2, 2, 0, Math.PI * 2)
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'
+        ctx.fill()
+      })
+
+      // 显示点数提示（左上角，更大更明显）
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.85)'
+      ctx.fillRect(8, 8, 200, 70)
+
+      // 添加边框
+      ctx.strokeStyle = '#409EFF'
+      ctx.lineWidth = 2
+      ctx.strokeRect(8, 8, 200, 70)
+
+      ctx.fillStyle = '#fff'
+      ctx.font = 'bold 16px Arial'
+      ctx.textAlign = 'left'
+      ctx.fillText(`已添加 ${polygonPoints.value.length} 个点`, 20, 35)
+
+      if (polygonPoints.value.length >= 3) {
+        ctx.fillStyle = '#67C23A'
+        ctx.font = 'bold 14px Arial'
+        ctx.fillText('✓ 右键或双击完成', 20, 60)
+      } else {
+        ctx.fillStyle = '#E6A23C'
+        ctx.font = 'bold 14px Arial'
+        ctx.fillText(`⚠ 还需 ${3 - polygonPoints.value.length} 个点`, 20, 60)
+      }
+
+      // 如果多边形已完成，绘制闭合线和填充
+      if (isPolygonComplete.value && polygonPoints.value.length >= 3) {
+        ctx.beginPath()
+        ctx.moveTo(polygonPoints.value[0].x, polygonPoints.value[0].y)
+        for (let i = 1; i < polygonPoints.value.length; i++) {
+          ctx.lineTo(polygonPoints.value[i].x, polygonPoints.value[i].y)
+        }
+        ctx.closePath()
+
+        // 填充
+        ctx.fillStyle = 'rgba(64, 158, 255, 0.3)'
+        ctx.fill()
+
+        // 边框（实线，更粗）
+        ctx.setLineDash([])
+        ctx.strokeStyle = '#409EFF'
+        ctx.lineWidth = 5
+        ctx.stroke()
+      }
+    }
+
+    ctx.restore()
+  }
 
   // 绘制连线和信息框
   if (selectedDefects.value.length > 0) {
@@ -310,7 +453,7 @@ const onMouseDown = (event: MouseEvent) => {
   const clickedLabelIndex = getLabelIndexAtPosition(mouseX, mouseY)
 
   if (clickedLabelIndex !== -1) {
-    // 点击在信息框上，开始拖拽
+    // 点击在信息框上，开始拖拽信息框
     event.stopPropagation()
     draggingIndex.value = clickedLabelIndex
     const defect = selectedDefects.value[clickedLabelIndex]
@@ -318,14 +461,57 @@ const onMouseDown = (event: MouseEvent) => {
       x: mouseX - defect.labelX,
       y: mouseY - defect.labelY
     }
+    return
+  }
+
+  // 根据交互模式处理
+  if (props.interactionMode === 'pan') {
+    // 拖拽模式：左键拖拽画布
+    if (event.button === 0) {
+      event.preventDefault()
+      waferZoom.startDrag(event.clientX, event.clientY)
+      interactionCanvas.value.style.cursor = 'grabbing'
+    }
+  } else if (props.interactionMode === 'polygon') {
+    // 多边形框选模式：左键添加点，右键或双击完成
+    if (event.button === 0) {
+      polygonPoints.value.push({ x: mouseX, y: mouseY })
+      clearLayer('interaction')
+      renderInteractionLayer()
+    }
   } else {
-    // 点击在其他地方，执行原有的框选逻辑
-    handleMouseDown(event, interactionCanvas.value)
+    // 矩形框选模式：执行原有的框选逻辑
+    handleMouseDown(
+      event,
+      interactionCanvas.value,
+      waferZoom.scale.value,
+      waferZoom.translateX.value,
+      waferZoom.translateY.value
+    )
   }
 }
 
 const onMouseMove = (event: MouseEvent) => {
   if (!interactionCanvas.value) return
+
+  // 如果正在拖拽画布
+  if (waferZoom.isDragging.value) {
+    waferZoom.onDrag(event.clientX, event.clientY, () => {
+      // 拖拽时重新绘制所有图层
+      nextTick(() => {
+        clearLayer('background')
+        const bgLayer = getLayer('background')
+        if (bgLayer) {
+          renderBackground(bgLayer, canvasSize.value)
+        }
+        clearLayer('defects')
+        renderDefectsLayer(canvasSize.value)
+        clearLayer('interaction')
+        renderInteractionLayer()
+      })
+    })
+    return
+  }
 
   const rect = interactionCanvas.value.getBoundingClientRect()
   const mouseX = event.clientX - rect.left
@@ -338,7 +524,8 @@ const onMouseMove = (event: MouseEvent) => {
       defect.labelX = mouseX - dragOffset.value.x
       defect.labelY = mouseY - dragOffset.value.y
 
-      // 重绘交互层（包括连线）
+      // 清空并重绘交互层（包括连线）
+      clearLayer('interaction')
       renderInteractionLayer()
     }
     return
@@ -352,8 +539,12 @@ const onMouseMove = (event: MouseEvent) => {
     // 鼠标在信息框上，显示移动光标
     interactionCanvas.value.style.cursor = 'move'
   } else {
-    // 鼠标不在信息框上，恢复默认光标
-    interactionCanvas.value.style.cursor = 'crosshair'
+    // 根据交互模式显示不同光标
+    if (props.interactionMode === 'pan') {
+      interactionCanvas.value.style.cursor = 'grab'
+    } else {
+      interactionCanvas.value.style.cursor = 'crosshair'
+    }
 
     // 执行原有的 hover 逻辑（显示 tooltip 等）
     handleMouseMove(
@@ -363,16 +554,28 @@ const onMouseMove = (event: MouseEvent) => {
       drawParams.value.scale * props.waferConfig.dieWidth,
       drawParams.value.scale * props.waferConfig.dieHeight,
       props.defects,
-      renderConfig.value.enableTooltip
+      renderConfig.value.enableTooltip,
+      waferZoom.scale.value,
+      waferZoom.translateX.value,
+      waferZoom.translateY.value
     )
   }
 
   // 重绘交互层
+  clearLayer('interaction')
   renderInteractionLayer()
 }
 
 const onMouseUp = (event: MouseEvent) => {
   if (!interactionCanvas.value) return
+
+  // 如果正在拖拽画布，结束拖拽
+  if (waferZoom.isDragging.value) {
+    waferZoom.endDrag()
+    // 根据交互模式恢复光标
+    interactionCanvas.value.style.cursor = props.interactionMode === 'pan' ? 'grab' : 'crosshair'
+    return
+  }
 
   // 如果正在拖拽信息框，结束拖拽
   if (draggingIndex.value !== null) {
@@ -407,7 +610,86 @@ const onMouseUp = (event: MouseEvent) => {
   }
 
   // 重新渲染交互层（包括信息框）
+  clearLayer('interaction')
   renderInteractionLayer()
+}
+
+/**
+ * 完成多边形框选
+ */
+const completePolygon = () => {
+  if (polygonPoints.value.length < 3) {
+    polygonPoints.value = []
+    clearLayer('interaction')
+    renderInteractionLayer()
+    return
+  }
+
+  isPolygonComplete.value = true
+  clearLayer('interaction')
+  renderInteractionLayer()
+
+  // 获取多边形内的 Die
+  const diesInPolygon = getDiesInPolygon()
+  if (diesInPolygon.length > 0) {
+    emit('selection', diesInPolygon)
+    getDefectsInSelection(diesInPolygon)
+    showOnlySelected.value = true
+
+    // 重新渲染缺陷层
+    canvasSize.value = Math.min(
+      containerRef.value?.clientWidth || CANVAS_CONFIG.DEFAULT_SIZE,
+      CANVAS_CONFIG.MAX_SIZE
+    )
+    renderDefectsLayer(canvasSize.value)
+  }
+
+  // 清空多边形
+  setTimeout(() => {
+    polygonPoints.value = []
+    isPolygonComplete.value = false
+    clearLayer('interaction')
+    renderInteractionLayer()
+  }, 500)
+}
+
+/**
+ * 获取多边形内的 Die
+ */
+const getDiesInPolygon = (): DieInfo[] => {
+  const dies: DieInfo[] = []
+
+  validDiePositions.value.forEach(die => {
+    const dieWidth = drawParams.value.scale * props.waferConfig.dieWidth
+    const dieHeight = drawParams.value.scale * props.waferConfig.dieHeight
+
+    // 检查 Die 的中心点或矩形是否在多边形内
+    const dieCenter = {
+      x: die.canvasX + dieWidth / 2,
+      y: die.canvasY + dieHeight / 2
+    }
+
+    const dieRect = {
+      x: die.canvasX,
+      y: die.canvasY,
+      width: dieWidth,
+      height: dieHeight
+    }
+
+    if (
+      isPointInPolygon(dieCenter, polygonPoints.value) ||
+      isRectIntersectPolygon(dieRect, polygonPoints.value)
+    ) {
+      dies.push({
+        row: die.row,
+        col: die.col,
+        x: die.physicalX,
+        y: die.physicalY
+      })
+    }
+  })
+
+  return dies
 }
 
 // 布局配置常量
@@ -481,12 +763,22 @@ const getDefectsInSelection = (selectedDies: DieInfo[]) => {
 }
 
 const onMouseLeave = () => {
+  // 结束画布拖拽
+  if (waferZoom.isDragging.value) {
+    waferZoom.endDrag()
+  }
   handleMouseLeave()
+  clearLayer('interaction')
   renderInteractionLayer()
 }
 
 const onClick = (event: MouseEvent) => {
   if (!interactionCanvas.value) return
+
+  // 多边形模式下不处理 click 事件（在 mousedown 中处理）
+  if (props.interactionMode === 'polygon') {
+    return
+  }
 
   const result = handleClick(
     event,
@@ -494,7 +786,10 @@ const onClick = (event: MouseEvent) => {
     validDiePositions.value,
     drawParams.value.scale * props.waferConfig.dieWidth,
     drawParams.value.scale * props.waferConfig.dieHeight,
-    props.defects
+    props.defects,
+    waferZoom.scale.value,
+    waferZoom.translateX.value,
+    waferZoom.translateY.value
   )
 
   if (result?.type === 'click') {
@@ -502,28 +797,98 @@ const onClick = (event: MouseEvent) => {
   }
 }
 
-const onWheel = (event: WheelEvent) => {
-  const newZoom = handleWheel(event, renderConfig.value.enableZoom)
-  if (newZoom !== undefined) {
-    emit('zoom', newZoom)
-    // 缩放后重新渲染缺陷层
-    nextTick(() => {
-      canvasSize.value = Math.min(
-        containerRef.value?.clientWidth || CANVAS_CONFIG.DEFAULT_SIZE,
-        CANVAS_CONFIG.MAX_SIZE
-      )
-      renderDefectsLayer(canvasSize.value)
-    })
+/**
+ * 右键点击完成多边形
+ */
+const onContextMenu = (event: MouseEvent) => {
+  if (props.interactionMode === 'polygon' && polygonPoints.value.length >= 3) {
+    event.preventDefault()
+    completePolygon()
   }
 }
 
+/**
+ * 双击完成多边形
+ */
+const onDoubleClick = (event: MouseEvent) => {
+  if (props.interactionMode === 'polygon' && polygonPoints.value.length >= 3) {
+    event.preventDefault()
+    completePolygon()
+  }
+}
+
+const onWheel = (event: WheelEvent) => {
+  if (!renderConfig.value.enableZoom || !containerRef.value) return
+
+  const rect = containerRef.value.getBoundingClientRect()
+
+  // 使用 waferZoom 处理滚轮事件，所有图层会同步缩放
+  waferZoom.handleWheel(event, rect, () => {
+    // 缩放变化后的回调
+    emit('zoom', waferZoom.scale.value)
+
+    // 重新渲染所有图层（包括背景层）
+    // 注意：applyTransformToAllLayers 已经在 handleWheel 内部调用了
+    nextTick(() => {
+      // 清空并重新绘制背景层（clearLayer 会保持变换）
+      clearLayer('background')
+      const bgLayer = getLayer('background')
+      if (bgLayer) {
+        renderBackground(bgLayer, canvasSize.value)
+      }
+
+      // 重新绘制缺陷层和交互层
+      clearLayer('defects')
+      renderDefectsLayer(canvasSize.value)
+
+      clearLayer('interaction')
+      renderInteractionLayer()
+    })
+  })
+}
+
 // ==================== 生命周期 ====================
+
+/**
+ * 键盘事件处理
+ */
+const handleKeyDown = (event: KeyboardEvent) => {
+  // Escape 键取消多边形
+  if (event.key === 'Escape' && props.interactionMode === 'polygon') {
+    polygonPoints.value = []
+    isPolygonComplete.value = false
+    clearLayer('interaction')
+    renderInteractionLayer()
+  }
+}
 
 onMounted(() => {
   nextTick(() => {
     render()
   })
+
+  // 添加键盘事件监听
+  window.addEventListener('keydown', handleKeyDown)
 })
+
+// 清理资源
+onUnmounted(() => {
+  waferZoom.cleanup()
+  window.removeEventListener('keydown', handleKeyDown)
+})
+
+// 监听交互模式变化，切换模式时清空多边形
+watch(
+  () => props.interactionMode,
+  (newMode, oldMode) => {
+    if (oldMode === 'polygon' && newMode !== 'polygon') {
+      polygonPoints.value = []
+      isPolygonComplete.value = false
+      clearLayer('interaction')
+      renderInteractionLayer()
+    }
+  }
+)
 
 // 监听配置变化
 watch(
@@ -561,12 +926,76 @@ const clearSelection = () => {
   renderDefectsLayer(canvasSize.value)
 }
 
+// 清理资源
+onUnmounted(() => {
+  waferZoom.cleanup()
+})
+
 // 暴露方法
 defineExpose({
   render,
   clearLayer,
   clearSelection,
-  getStats: () => stats.value
+  getStats: () => stats.value,
+  // 缩放相关方法
+  zoomIn: () => {
+    if (!containerRef.value) return
+    const rect = containerRef.value.getBoundingClientRect()
+    waferZoom.zoomIn(rect.width / 2, rect.height / 2, () => {
+      nextTick(() => {
+        // 清空并重新绘制所有图层
+        clearLayer('background')
+        const bgLayer = getLayer('background')
+        if (bgLayer) {
+          renderBackground(bgLayer, canvasSize.value)
+        }
+        clearLayer('defects')
+        renderDefectsLayer(canvasSize.value)
+        clearLayer('interaction')
+        renderInteractionLayer()
+      })
+    })
+  },
+  zoomOut: () => {
+    if (!containerRef.value) return
+    const rect = containerRef.value.getBoundingClientRect()
+    waferZoom.zoomOut(rect.width / 2, rect.height / 2, () => {
+      nextTick(() => {
+        // 清空并重新绘制所有图层
+        clearLayer('background')
+        const bgLayer = getLayer('background')
+        if (bgLayer) {
+          renderBackground(bgLayer, canvasSize.value)
+        }
+        clearLayer('defects')
+        renderDefectsLayer(canvasSize.value)
+        clearLayer('interaction')
+        renderInteractionLayer()
+      })
+    })
+  },
+  resetZoom: () => {
+    waferZoom.resetZoom(() => {
+      nextTick(() => {
+        // 清空并重新绘制所有图层
+        clearLayer('background')
+        const bgLayer = getLayer('background')
+        if (bgLayer) {
+          renderBackground(bgLayer, canvasSize.value)
+        }
+        clearLayer('defects')
+        renderDefectsLayer(canvasSize.value)
+        clearLayer('interaction')
+        renderInteractionLayer()
+      })
+    })
+  },
+  getZoomState: () => ({
+    scale: waferZoom.scale.value,
+    translateX: waferZoom.translateX.value,
+    translateY: waferZoom.translateY.value,
+    percentage: waferZoom.zoomPercentage.value
+  })
 })
 </script>
 

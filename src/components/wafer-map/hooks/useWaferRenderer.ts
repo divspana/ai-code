@@ -25,11 +25,10 @@ export function useWaferRenderer(config: WaferConfig) {
    * 渲染背景层
    */
   const renderBackground = (layer: LayerContext, canvasSize: number) => {
-    const { canvas, ctx } = layer
+    const { ctx } = layer
 
-    // 清空并重置
-    ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    // 注意：不要重置变换，保持外部应用的缩放变换
+    // clearRect 会在 clearLayer 中处理（使用 save/restore）
 
     // 计算缩放和中心
     const scale = (canvasSize * CANVAS_CONFIG.SCALE_FACTOR) / config.diameter

@@ -49,6 +49,22 @@ export function useInteraction() {
   // ==================== 辅助方法 ====================
 
   /**
+   * 将屏幕坐标转换为画布坐标（考虑缩放和平移）
+   */
+  const screenToCanvas = (
+    screenX: number,
+    screenY: number,
+    scale: number,
+    translateX: number,
+    translateY: number
+  ) => {
+    return {
+      x: (screenX - translateX) / scale,
+      y: (screenY - translateY) / scale
+    }
+  }
+
+  /**
    * 根据画布坐标获取 Die 信息
    */
   const getDieAtPosition = (
@@ -127,16 +143,25 @@ export function useInteraction() {
   /**
    * 鼠标按下
    */
-  const handleMouseDown = (event: MouseEvent, canvas: HTMLCanvasElement) => {
+  const handleMouseDown = (
+    event: MouseEvent,
+    canvas: HTMLCanvasElement,
+    scale: number = 1,
+    translateX: number = 0,
+    translateY: number = 0
+  ) => {
     const rect = canvas.getBoundingClientRect()
-    const x = event.clientX - rect.left
-    const y = event.clientY - rect.top
+    const screenX = event.clientX - rect.left
+    const screenY = event.clientY - rect.top
+
+    // 转换为画布坐标
+    const canvasCoords = screenToCanvas(screenX, screenY, scale, translateX, translateY)
 
     if (event.button === 0) {
       // 左键：开始选择
       isSelecting.value = true
-      selectionStart.value = { x, y }
-      selectionEnd.value = { x, y }
+      selectionStart.value = { x: canvasCoords.x, y: canvasCoords.y }
+      selectionEnd.value = { x: canvasCoords.x, y: canvasCoords.y }
       tooltip.value.visible = false
     } else if (event.button === 2) {
       // 右键：开始平移
@@ -155,15 +180,21 @@ export function useInteraction() {
     dieWidth: number,
     dieHeight: number,
     defects: Defect[],
-    enableTooltip: boolean
+    enableTooltip: boolean,
+    scale: number = 1,
+    translateX: number = 0,
+    translateY: number = 0
   ) => {
     const rect = canvas.getBoundingClientRect()
-    const x = event.clientX - rect.left
-    const y = event.clientY - rect.top
+    const screenX = event.clientX - rect.left
+    const screenY = event.clientY - rect.top
+
+    // 转换为画布坐标
+    const canvasCoords = screenToCanvas(screenX, screenY, scale, translateX, translateY)
 
     if (isSelecting.value) {
       // 更新选择框
-      selectionEnd.value = { x, y }
+      selectionEnd.value = { x: canvasCoords.x, y: canvasCoords.y }
       tooltip.value.visible = false
     } else if (isPanning.value) {
       // 平移
@@ -174,13 +205,20 @@ export function useInteraction() {
       lastMousePos.value = { x: event.clientX, y: event.clientY }
       tooltip.value.visible = false
     } else if (enableTooltip) {
-      // 显示 Tooltip
-      const dieInfo = getDieAtPosition(x, y, diePositions, dieWidth, dieHeight, defects)
+      // 显示 Tooltip（使用画布坐标）
+      const dieInfo = getDieAtPosition(
+        canvasCoords.x,
+        canvasCoords.y,
+        diePositions,
+        dieWidth,
+        dieHeight,
+        defects
+      )
       if (dieInfo) {
         tooltip.value = {
           visible: true,
-          x: x + INTERACTION_CONFIG.TOOLTIP_OFFSET,
-          y: y + INTERACTION_CONFIG.TOOLTIP_OFFSET,
+          x: screenX + INTERACTION_CONFIG.TOOLTIP_OFFSET,
+          y: screenY + INTERACTION_CONFIG.TOOLTIP_OFFSET,
           dieInfo
         }
       } else {
@@ -239,13 +277,26 @@ export function useInteraction() {
     diePositions: DiePosition[],
     dieWidth: number,
     dieHeight: number,
-    defects: Defect[]
+    defects: Defect[],
+    scale: number = 1,
+    translateX: number = 0,
+    translateY: number = 0
   ) => {
     const rect = canvas.getBoundingClientRect()
-    const x = event.clientX - rect.left
-    const y = event.clientY - rect.top
+    const screenX = event.clientX - rect.left
+    const screenY = event.clientY - rect.top
 
-    const dieInfo = getDieAtPosition(x, y, diePositions, dieWidth, dieHeight, defects)
+    // 转换为画布坐标
+    const canvasCoords = screenToCanvas(screenX, screenY, scale, translateX, translateY)
+
+    const dieInfo = getDieAtPosition(
+      canvasCoords.x,
+      canvasCoords.y,
+      diePositions,
+      dieWidth,
+      dieHeight,
+      defects
+    )
     if (dieInfo) {
       return { type: 'click', die: dieInfo }
     }

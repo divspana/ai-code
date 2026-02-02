@@ -7,6 +7,7 @@
 export type NotchPosition = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT'
 export type XDirection = 'LEFT' | 'RIGHT'
 export type YDirection = 'UP' | 'DOWN'
+export type InteractionMode = 'select' | 'polygon' | 'pan' // 交互模式：矩形框选、多边形框选或拖拽
 
 // ==================== 缺陷类型 ====================
 
@@ -134,6 +135,9 @@ export interface WaferMapProps {
 
   // 可选配置
   renderConfig?: Partial<RenderConfig>
+
+  // 交互模式
+  interactionMode?: InteractionMode // 'select' 框选模式 | 'pan' 拖拽模式
 
   // 尺寸
   width?: number | string
