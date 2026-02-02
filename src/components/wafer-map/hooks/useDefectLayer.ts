@@ -44,8 +44,6 @@ export function useDefectLayer() {
     enableCulling: boolean,
     enableDecimation: boolean
   ): Map<string, ProcessedDefect[]> => {
-    const startTime = performance.now()
-
     // 创建 Die 查找 Map
     const dieMap = new Map<string, DiePosition>()
     diePositions.forEach(die => {
@@ -81,17 +79,12 @@ export function useDefectLayer() {
       for (let i = 0; i < defects.length && samplesToProcess.length < targetCount; i += step) {
         samplesToProcess.push(defects[i])
       }
-
-      console.log(
-        `预采样: ${defects.length} -> ${samplesToProcess.length} (目标: ${maxRenderPoints}, 比例: ${(preSamplingRate * 100).toFixed(1)}%)`
-      )
     }
 
     // 使用像素网格进行精确去重
     // 同一像素位置只保留一个点
     const pixelGrid = new Map<string, ProcessedDefect>()
     let skipped = 0
-    let culled = 0
     let duplicatePixels = 0
 
     samplesToProcess.forEach(defect => {
@@ -117,7 +110,6 @@ export function useDefectLayer() {
           defectY < viewport.minY - margin ||
           defectY > viewport.maxY + margin
         ) {
-          culled++
           return
         }
       }
@@ -153,7 +145,6 @@ export function useDefectLayer() {
       defectsByColor.get(defect.color)!.push(defect)
     })
 
-    const processingTime = performance.now() - startTime
     const rendered = pixelGrid.size
 
     // 更新统计
@@ -162,20 +153,6 @@ export function useDefectLayer() {
       rendered,
       skipped: skipped + duplicatePixels
     }
-
-    // 详细的统计信息
-    const efficiency = ((rendered / totalDiePixels) * 100).toFixed(1)
-    console.log(
-      `多维度智能抽稀:\n` +
-        `  原始数据: ${defects.length}\n` +
-        `  预采样: ${samplesToProcess.length} (${(preSamplingRate * 100).toFixed(1)}%)\n` +
-        `  像素去重: ${rendered} 个唯一像素点\n` +
-        `  重复像素: ${duplicatePixels}\n` +
-        `  视口裁剪: ${culled}\n` +
-        `  无效Die: ${skipped}\n` +
-        `  像素容量: ${totalDiePixels} (利用率 ${efficiency}%)\n` +
-        `  处理时间: ${processingTime.toFixed(2)}ms`
-    )
 
     return defectsByColor
   }
@@ -235,9 +212,86 @@ export function useDefectLayer() {
     })
   }
 
+  /**
+   * 分批渲染缺陷（用于大数据量）
+   * @param layer 图层上下文
+   * @param defects 缺陷数据
+   * @param batchSize 每批渲染的数量
+   * @param onProgress 进度回调
+   * @param onComplete 完成回调
+   */
+  const renderDefectsBatch = async (
+    layer: LayerContext,
+    defects: Defect[],
+    diePositions: DiePosition[],
+    viewport: Viewport,
+    scale: number,
+    dieWidth: number,
+    dieHeight: number,
+    enableCulling: boolean,
+    enableDecimation: boolean,
+    batchSize: number = 50000,
+    onProgress?: (current: number, total: number, percentage: number) => void,
+    onComplete?: () => void
+  ) => {
+    const { ctx } = layer
+    const totalDefects = defects.length
+
+    // 分批处理
+    for (let i = 0; i < totalDefects; i += batchSize) {
+      const batch = defects.slice(i, Math.min(i + batchSize, totalDefects))
+
+      // 处理这一批缺陷
+      const defectsByColor = processDefects(
+        batch,
+        diePositions,
+        viewport,
+        scale,
+        dieWidth,
+        dieHeight,
+        enableCulling,
+        enableDecimation
+      )
+
+      // 渲染这一批（增量渲染，不清空画布）
+      defectsByColor.forEach((defectList, color) => {
+        ctx.fillStyle = color
+
+        if (defectList.length > 0 && defectList[0].size <= 1) {
+          defectList.forEach(({ x, y, size }) => {
+            const halfSize = size
+            ctx.fillRect(x - halfSize, y - halfSize, size * 2, size * 2)
+          })
+        } else {
+          defectList.forEach(({ x, y, size }) => {
+            ctx.beginPath()
+            ctx.arc(x, y, size, 0, Math.PI * 2)
+            ctx.fill()
+          })
+        }
+      })
+
+      // 报告进度
+      const current = Math.min(i + batchSize, totalDefects)
+      const percentage = Math.round((current / totalDefects) * 100)
+      if (onProgress) {
+        onProgress(current, totalDefects, percentage)
+      }
+
+      // 让出主线程，避免阻塞 UI
+      await new Promise(resolve => setTimeout(resolve, 0))
+    }
+
+    // 完成回调
+    if (onComplete) {
+      onComplete()
+    }
+  }
+
   return {
     defectStats,
     renderDefects,
+    renderDefectsBatch,
     processDefects
   }
 }

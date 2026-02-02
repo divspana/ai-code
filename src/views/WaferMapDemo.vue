@@ -143,6 +143,16 @@
                 <el-tag v-if="zoomState" type="info" style="margin-right: 12px">
                   {{ zoomState.percentage }}%
                 </el-tag>
+                <el-tag v-if="generateProgress.isGenerating" type="info" style="margin-right: 12px">
+                  生成中: {{ generateProgress.percentage }}% ({{
+                    generateProgress.current.toLocaleString()
+                  }}/{{ generateProgress.total.toLocaleString() }})
+                </el-tag>
+                <el-tag v-if="renderProgress.isRendering" type="warning" style="margin-right: 12px">
+                  渲染中: {{ renderProgress.percentage }}% ({{
+                    renderProgress.current.toLocaleString()
+                  }}/{{ renderProgress.total.toLocaleString() }})
+                </el-tag>
                 <el-tag v-if="selectedDies.length > 0" type="success">
                   已选择 {{ selectedDies.length }} 个 Die
                 </el-tag>
@@ -164,6 +174,8 @@
             @zoom="handleZoom"
             @ready="handleReady"
             @error="handleError"
+            @render-progress="handleRenderProgress"
+            @render-complete="handleRenderComplete"
           />
         </el-card>
       </el-col>
@@ -172,7 +184,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ZoomIn, ZoomOut, RefreshRight, Pointer, Rank, Connection } from '@element-plus/icons-vue'
 import { WaferMap } from '@/components/wafer-map'
@@ -242,6 +254,19 @@ const zoomState = ref<{
   percentage: number
 } | null>(null)
 
+// 渲染进度状态
+const renderProgress = ref<{
+  isRendering: boolean
+  current: number
+  total: number
+  percentage: number
+}>({
+  isRendering: false,
+  current: 0,
+  total: 0,
+  percentage: 0
+})
+
 // Web Worker 实例
 let dataWorker: Worker | null = null
 
@@ -299,13 +324,19 @@ const generateDefects = () => {
   })
 }
 
-/**
- * 同步生成数据（小数据量）
- */
-const generateDefectsSync = () => {
-  const newDefects: Defect[] = []
-  const defectTypes = ['scratch', 'particle', 'void', 'crack', 'contamination']
+// 生成进度状态
+const generateProgress = ref({
+  isGenerating: false,
+  current: 0,
+  total: 0,
+  percentage: 0
+})
 
+/**
+ * 同步生成数据（支持分批生成）
+ */
+const generateDefectsSync = async () => {
+  const defectTypes = ['scratch', 'particle', 'void', 'crack', 'contamination']
   const startTime = performance.now()
 
   // 计算晶圆上可能的 Die 范围
@@ -333,27 +364,82 @@ const generateDefectsSync = () => {
     }
   }
 
-  // 在有效 Die 上随机生成缺陷
-  for (let i = 0; i < defectCount.value; i++) {
-    // 随机选择一个有效 Die
-    const randomDie = possibleDies[Math.floor(Math.random() * possibleDies.length)]
+  // 流式生成和渲染（超过 5 万个使用流式处理）
+  const BATCH_SIZE = 20000 // 每批 2 万个点，平衡速度和视觉效果
+  const totalCount = defectCount.value
+  const useStreamProcessing = totalCount > 50000
 
-    newDefects.push({
-      dieRow: randomDie.row,
-      dieCol: randomDie.col,
-      x: Math.random(),
-      y: Math.random(),
-      type: defectTypes[Math.floor(Math.random() * defectTypes.length)],
-      size: 0.5
-    })
+  if (useStreamProcessing) {
+    // 流式处理：边生成边渲染
+    generateProgress.value.isGenerating = true
+    generateProgress.value.total = totalCount
+
+    // 先清空现有数据
+    defects.value = []
+
+    for (let i = 0; i < totalCount; i += BATCH_SIZE) {
+      const batchSize = Math.min(BATCH_SIZE, totalCount - i)
+      const batchDefects: Defect[] = []
+
+      // 生成这一批
+      for (let j = 0; j < batchSize; j++) {
+        const randomDie = possibleDies[Math.floor(Math.random() * possibleDies.length)]
+        batchDefects.push({
+          dieRow: randomDie.row,
+          dieCol: randomDie.col,
+          x: Math.random(),
+          y: Math.random(),
+          type: defectTypes[Math.floor(Math.random() * defectTypes.length)],
+          size: 0.5
+        })
+      }
+
+      // 立即追加到数据中（触发渲染）
+      defects.value = [...defects.value, ...batchDefects]
+
+      // 更新进度
+      const current = Math.min(i + batchSize, totalCount)
+      const percentage = Math.round((current / totalCount) * 100)
+      generateProgress.value.current = current
+      generateProgress.value.percentage = percentage
+
+      // 等待 Vue 更新和渲染
+      await nextTick()
+      // 短暂延迟让渲染有时间完成
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
+
+    generateProgress.value.isGenerating = false
+
+    const generateTime = performance.now() - startTime
+    // 使用 nextTick 确保所有渲染完成后再显示消息
+    await nextTick()
+    ElMessage.success(
+      `成功渲染 ${totalCount.toLocaleString()} 个缺陷，分布在 ${possibleDies.length} 个 Die 上，耗时 ${(generateTime / 1000).toFixed(2)}s`
+    )
+  } else {
+    // 一次性生成（小数据量）
+    const newDefects: Defect[] = []
+
+    for (let i = 0; i < totalCount; i++) {
+      const randomDie = possibleDies[Math.floor(Math.random() * possibleDies.length)]
+      newDefects.push({
+        dieRow: randomDie.row,
+        dieCol: randomDie.col,
+        x: Math.random(),
+        y: Math.random(),
+        type: defectTypes[Math.floor(Math.random() * defectTypes.length)],
+        size: 0.5
+      })
+    }
+
+    defects.value = newDefects
+
+    const generateTime = performance.now() - startTime
+    ElMessage.success(
+      `生成 ${totalCount.toLocaleString()} 个缺陷，分布在 ${possibleDies.length} 个 Die 上，耗时 ${generateTime.toFixed(2)}ms`
+    )
   }
-
-  defects.value = newDefects
-
-  const generateTime = performance.now() - startTime
-  ElMessage.success(
-    `生成 ${defectCount.value} 个缺陷，分布在 ${possibleDies.length} 个 Die 上，耗时 ${generateTime.toFixed(2)}ms`
-  )
 }
 
 /**
@@ -394,6 +480,25 @@ const handleReady = () => {
 const handleError = (error: Error) => {
   ElMessage.error(`渲染错误: ${error.message}`)
   console.error('Render error:', error)
+}
+
+/**
+ * 渲染进度事件
+ */
+const handleRenderProgress = (progress: { current: number; total: number; percentage: number }) => {
+  renderProgress.value = {
+    isRendering: true,
+    ...progress
+  }
+  console.log(`渲染进度: ${progress.percentage}% (${progress.current}/${progress.total})`)
+}
+
+/**
+ * 渲染完成事件
+ */
+const handleRenderComplete = () => {
+  renderProgress.value.isRendering = false
+  // 不显示消息，避免流式生成时多次弹出
 }
 
 /**

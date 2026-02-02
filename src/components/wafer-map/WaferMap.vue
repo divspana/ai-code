@@ -36,6 +36,7 @@ import { usePerformance } from './hooks/usePerformance'
 import { useWaferZoom } from './hooks/useWaferZoom'
 import { optimizeLabelLayout, initializeLabelPosition } from './utils/labelLayout'
 import { isPointInPolygon, isRectIntersectPolygon } from './utils/polygonUtils'
+import { smartSelectRenderData, calculateSmartViewport } from './utils/smartDataManager'
 
 // Props & Emits
 const props = withDefaults(defineProps<WaferMapProps>(), {
@@ -69,7 +70,7 @@ const {
 
 const { validDiePositions, drawParams, renderBackground } = useWaferRenderer(props.waferConfig)
 
-const { defectStats, renderDefects } = useDefectLayer()
+const { defectStats, renderDefects, renderDefectsBatch } = useDefectLayer()
 
 const {
   zoom,
@@ -126,14 +127,8 @@ const hoveredLabelIndex = ref<number | null>(null)
 const polygonPoints = ref<Array<{ x: number; y: number }>>([])
 const isPolygonComplete = ref(false)
 
-const {
-  stats,
-  recordFrameTime,
-  calculateViewport,
-  calculateLODLevel,
-  updateDefectStats,
-  updateLODLevel
-} = usePerformance()
+const { stats, recordFrameTime, calculateLODLevel, updateDefectStats, updateLODLevel } =
+  usePerformance()
 
 // 容器样式
 const containerStyle = computed(() => ({
@@ -195,38 +190,142 @@ const render = async () => {
   }
 }
 
+// 渲染进度状态
+const renderProgress = ref({
+  isRendering: false,
+  current: 0,
+  total: 0,
+  percentage: 0
+})
+
+// 是否使用增量渲染（用于流式生成）
+const useIncrementalRendering = ref(false)
+const lastRenderedCount = ref(0)
+
 /**
  * 渲染缺陷层
  */
-const renderDefectsLayer = async (size: number) => {
+const renderDefectsLayer = async (size: number, incremental: boolean = false) => {
   const defectsLayer = getLayer('defects')
   if (!defectsLayer) return
 
-  // 计算视口（初始状态下覆盖整个画布）
-  const viewport = calculateViewport(size, size, zoom.value, size / 2, size / 2)
+  // 只有非增量模式才清空画布
+  if (!incremental && !useIncrementalRendering.value) {
+    clearLayer('defects')
+    lastRenderedCount.value = 0
+  }
 
-  // 计算 LOD 级别
+  // 计算智能视口（考虑平移和缩放）
+  const viewport = calculateSmartViewport(
+    size,
+    size,
+    waferZoom.scale.value,
+    waferZoom.translateX.value,
+    waferZoom.translateY.value
+  )
+
+  // 计算 LOD 级别（用于统计显示）
   const lodLevel = calculateLODLevel(zoom.value, props.defects.length)
   updateLODLevel(lodLevel)
 
-  // 渲染缺陷（如果启用了只显示选中模式，则只渲染选中的坏点）
-  const defectsToRender = showOnlySelected.value
+  // 获取基础数据
+  let baseDefects = showOnlySelected.value
     ? props.defects.filter(d =>
         selectedDefects.value.some(sd => sd.dieRow === d.dieRow && sd.dieCol === d.dieCol)
       )
     : props.defects
 
-  renderDefects(
-    defectsLayer,
-    defectsToRender,
-    validDiePositions.value,
-    viewport,
-    drawParams.value.scale,
-    drawParams.value.scale * props.waferConfig.dieWidth,
-    drawParams.value.scale * props.waferConfig.dieHeight,
-    renderConfig.value.enableViewportCulling,
-    renderConfig.value.enableDataDecimation
-  )
+  // 如果是增量模式，只处理新增的数据
+  if (incremental && lastRenderedCount.value > 0) {
+    baseDefects = baseDefects.slice(lastRenderedCount.value)
+  }
+
+  // 使用智能数据管理器选择要渲染的数据
+  let defectsToRender = baseDefects
+
+  if (baseDefects.length > 50000) {
+    // 构建 Die 位置映射
+    const dieMap = new Map<string, { canvasX: number; canvasY: number }>()
+    validDiePositions.value.forEach(die => {
+      dieMap.set(`${die.row},${die.col}`, { canvasX: die.canvasX, canvasY: die.canvasY })
+    })
+
+    // 智能选择数据
+    const result = smartSelectRenderData(
+      baseDefects,
+      {
+        zoom: waferZoom.scale.value,
+        viewport,
+        totalDataCount: props.defects.length,
+        canvasSize: size
+      },
+      dieMap,
+      drawParams.value.scale * props.waferConfig.dieWidth,
+      drawParams.value.scale * props.waferConfig.dieHeight
+    )
+
+    defectsToRender = result.data
+  }
+
+  // 更新已渲染数量
+  const totalCount = showOnlySelected.value
+    ? props.defects.filter(d =>
+        selectedDefects.value.some(sd => sd.dieRow === d.dieRow && sd.dieCol === d.dieCol)
+      ).length
+    : props.defects.length
+
+  // 使用分批渲染（超过 5 万个点）
+  const BATCH_THRESHOLD = 50000
+  const useBatchRendering = defectsToRender.length > BATCH_THRESHOLD
+
+  if (useBatchRendering) {
+    // 分批渲染
+    renderProgress.value.isRendering = true
+    renderProgress.value.total = defectsToRender.length
+
+    await renderDefectsBatch(
+      defectsLayer,
+      defectsToRender,
+      validDiePositions.value,
+      viewport,
+      drawParams.value.scale,
+      drawParams.value.scale * props.waferConfig.dieWidth,
+      drawParams.value.scale * props.waferConfig.dieHeight,
+      renderConfig.value.enableViewportCulling,
+      renderConfig.value.enableDataDecimation,
+      50000, // 每批 5 万个点
+      (current, total, percentage) => {
+        // 进度回调
+        renderProgress.value.current = current
+        renderProgress.value.total = total
+        renderProgress.value.percentage = percentage
+        emit('render-progress', { current, total, percentage })
+      },
+      () => {
+        // 完成回调
+        renderProgress.value.isRendering = false
+        // 只在非增量模式下发出完成事件（避免流式生成时多次触发）
+        if (!incremental) {
+          emit('render-complete', defectsToRender.length)
+        }
+      }
+    )
+    lastRenderedCount.value = totalCount
+  } else {
+    // 一次性渲染
+    renderDefects(
+      defectsLayer,
+      defectsToRender,
+      validDiePositions.value,
+      viewport,
+      drawParams.value.scale,
+      drawParams.value.scale * props.waferConfig.dieWidth,
+      drawParams.value.scale * props.waferConfig.dieHeight,
+      renderConfig.value.enableViewportCulling,
+      renderConfig.value.enableDataDecimation
+    )
+    lastRenderedCount.value = totalCount
+  }
 
   // 更新统计
   updateDefectStats(defectStats.value.rendered, defectStats.value.total)
@@ -901,14 +1000,44 @@ watch(
 
 watch(
   () => props.defects,
-  () => {
-    canvasSize.value = Math.min(
-      containerRef.value?.clientWidth || CANVAS_CONFIG.DEFAULT_SIZE,
-      CANVAS_CONFIG.MAX_SIZE
-    )
-    renderDefectsLayer(canvasSize.value)
-  },
-  { deep: true }
+  (newDefects, oldDefects) => {
+    // 只在数组长度变化时才重新渲染（避免缩放等操作触发）
+    if (!oldDefects || newDefects.length !== oldDefects.length) {
+      canvasSize.value = Math.min(
+        containerRef.value?.clientWidth || CANVAS_CONFIG.DEFAULT_SIZE,
+        CANVAS_CONFIG.MAX_SIZE
+      )
+
+      // 如果是增量更新（新数据比旧数据多），使用增量渲染
+      const isIncremental = oldDefects && newDefects.length > oldDefects.length
+      renderDefectsLayer(canvasSize.value, isIncremental)
+    }
+  }
+)
+
+// 监听缩放变化，动态切换全局/局部模式
+// 注意：缩放时不重新渲染，让 Canvas 变换矩阵自动处理缩放效果
+// 只在模式切换时才重新渲染
+watch(
+  () => waferZoom.scale.value,
+  (newScale, oldScale) => {
+    // 只有在数据量大时才需要动态切换
+    if (props.defects.length > 50000) {
+      // 检查是否跨越了模式切换阈值（1.5x）
+      const oldIsLocal = oldScale >= 1.5
+      const newIsLocal = newScale >= 1.5
+
+      // 只在模式切换时重新渲染（全局概览 ↔ 局部详细）
+      if (oldIsLocal !== newIsLocal) {
+        canvasSize.value = Math.min(
+          containerRef.value?.clientWidth || CANVAS_CONFIG.DEFAULT_SIZE,
+          CANVAS_CONFIG.MAX_SIZE
+        )
+        renderDefectsLayer(canvasSize.value, false)
+      }
+      // 其他情况下不重新渲染，让 Canvas 变换矩阵自动处理缩放
+    }
+  }
 )
 
 /**
