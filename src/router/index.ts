@@ -122,6 +122,24 @@ const routes: RouteRecordRaw[] = [
       title: 'Wafer Map 组件',
       icon: 'Grid'
     }
+  },
+  {
+    path: '/scatter-chart',
+    name: 'ScatterChart',
+    component: () => import('../views/ScatterChartDemo.vue'),
+    meta: {
+      title: '散点图组件',
+      icon: 'ScaleToOriginal'
+    }
+  },
+  {
+    path: '/scatter-chart-debug',
+    name: 'ScatterChartDebug',
+    component: () => import('../views/ScatterChartDebug.vue'),
+    meta: {
+      title: '散点图性能调试',
+      icon: 'Monitor'
+    }
   }
 ]
 
