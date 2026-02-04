@@ -44,9 +44,6 @@ export function useVirtualScroll(options: VirtualScrollOptions): VirtualScrollRe
     return Math.max(startIndex.value + 1, Math.min(allData.value.length, index))
   })
 
-  // 实际渲染的数据量
-  const renderCount = computed(() => endIndex.value - startIndex.value)
-
   // 可见数据
   const visibleData = computed(() => {
     if (allData.value.length === 0) {
@@ -93,7 +90,6 @@ export function useVirtualScroll(options: VirtualScrollOptions): VirtualScrollRe
   })
 
   // 滚动处理 - 添加边界检查和防抖优化
-  let scrollTimer: number | null = null
   const handleScroll = (event: Event) => {
     const target = event.target as HTMLElement
     const newScrollTop = target.scrollTop

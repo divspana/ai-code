@@ -113,7 +113,7 @@ const generateData = () => {
   const startTime = performance.now()
   
   // 减少到 6 个图表，避免内存爆炸
-  charts.value = Array.from({ length: 6 }, (_, index) => ({
+  charts.value = Array.from({ length: 12 }, (_, index) => ({
     title: `散点图 ${index + 1}`,
     data: generateRandomData(dataCount.value),
     color: colors[index],

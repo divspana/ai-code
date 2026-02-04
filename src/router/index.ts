@@ -140,6 +140,15 @@ const routes: RouteRecordRaw[] = [
       title: '散点图性能调试',
       icon: 'Monitor'
     }
+  },
+  {
+    path: '/box-plot-debug',
+    name: 'BoxPlotDebug',
+    component: () => import('../views/BoxPlotDebug.vue'),
+    meta: {
+      title: '箱线图调试',
+      icon: 'DataAnalysis'
+    }
   }
 ]
 
