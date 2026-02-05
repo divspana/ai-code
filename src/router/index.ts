@@ -149,6 +149,24 @@ const routes: RouteRecordRaw[] = [
       title: '箱线图调试',
       icon: 'DataAnalysis'
     }
+  },
+  {
+    path: '/data-optimization',
+    name: 'DataOptimization',
+    component: () => import('../views/DataOptimizationDemo.vue'),
+    meta: {
+      title: '数据优化演示',
+      icon: 'TrendCharts'
+    }
+  },
+  {
+    path: '/vchart-scatter-debug',
+    name: 'VChartScatterDebug',
+    component: () => import('../views/VChartScatterDebug.vue'),
+    meta: {
+      title: 'VChart 散点图',
+      icon: 'Histogram'
+    }
   }
 ]
 
